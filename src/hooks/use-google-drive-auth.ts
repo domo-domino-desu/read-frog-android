@@ -8,6 +8,7 @@ import {
   getIsAuthenticated,
   getValidAccessToken,
 } from "@/utils/google-drive/auth"
+import { supportsGoogleDriveSync } from "@/utils/platform"
 
 interface GoogleDriveAuthData {
   isAuthenticated: boolean
@@ -21,6 +22,7 @@ export function useGoogleDriveAuth() {
 
   const query = useQuery({
     queryKey: QUERY_KEY,
+    enabled: supportsGoogleDriveSync,
     queryFn: async (): Promise<GoogleDriveAuthData> => {
       const authenticated = await getIsAuthenticated()
       if (!authenticated) {

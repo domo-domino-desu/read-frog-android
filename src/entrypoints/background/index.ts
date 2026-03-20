@@ -8,6 +8,7 @@ import { initI18n, setUiLanguage } from "@/utils/i18n"
 import { logger } from "@/utils/logger"
 import { onMessage } from "@/utils/message"
 import { openOptionsPage } from "@/utils/navigation"
+import { supportsContextMenu } from "@/utils/platform"
 import { SessionCacheGroupRegistry } from "@/utils/session-cache/session-cache-group-registry"
 import { runAiSegmentSubtitles } from "./ai-segmentation"
 import { setupAnalyticsMessageHandlers } from "./analytics"
@@ -34,6 +35,21 @@ import { setUpSubtitlesTranslationQueue, setUpWebPageTranslationQueue } from "./
 import { translationMessage } from "./translation-signal"
 import { setupTTSPlaybackMessageHandlers } from "./tts-playback"
 import { setupUninstallSurvey } from "./uninstall-survey"
+
+interface OptionalContextMenuDependencies {
+  initializeContextMenu: () => Promise<void>
+  registerContextMenuListeners: () => void
+  supportsContextMenu: boolean
+}
+
+export function setupOptionalContextMenu({
+  initializeContextMenu,
+  registerContextMenuListeners,
+  supportsContextMenu,
+}: OptionalContextMenuDependencies) {
+  if (!supportsContextMenu) return
+  registerContextMenuListeners()
+}
 
 export default defineBackground({
   type: "module",
@@ -103,7 +119,11 @@ export default defineBackground({
 
     // Register context menu listeners synchronously
     // This ensures listeners are registered before Chrome completes initialization
-    registerContextMenuListeners()
+    setupOptionalContextMenu({
+      initializeContextMenu,
+      registerContextMenuListeners,
+      supportsContextMenu,
+    })
 
     // Initialize action icons asynchronously
     void initializeActionIcons()
@@ -132,7 +152,7 @@ export default defineBackground({
       const config = await ensureInitializedConfig()
       currentUiLanguage = config?.uiLanguage ?? "auto"
       await initI18n(currentUiLanguage)
-      void initializeContextMenu()
+      if (supportsContextMenu) void initializeContextMenu()
       await setupUninstallSurvey()
     })()
 

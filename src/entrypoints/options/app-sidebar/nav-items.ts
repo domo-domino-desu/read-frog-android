@@ -1,3 +1,5 @@
+import { supportsContextMenu } from "@/utils/platform"
+
 export const ROUTE_DEFS = [
   { path: "/" },
   { path: "/api-providers" },
@@ -7,9 +9,9 @@ export const ROUTE_DEFS = [
   { path: "/video-subtitles" },
   { path: "/floating-button" },
   { path: "/selection-toolbar" },
-  { path: "/context-menu" },
+  ...(supportsContextMenu ? [{ path: "/context-menu" } as const] : []),
   { path: "/input-translation" },
-  { path: "/tts" },
+  ...(import.meta.env.BROWSER === "firefox" ? [] : [{ path: "/tts" } as const]),
   { path: "/statistics" },
   { path: "/config" },
 ] as const
