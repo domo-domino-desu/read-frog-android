@@ -22,6 +22,7 @@ import { matchDomainPattern } from "@/utils/url"
 import { enablePageTranslationAtom, isDraggingButtonAtom } from "../../atoms"
 import { shadowWrapper } from "../../index"
 import HiddenButton from "./components/hidden-button"
+import { requestPageTranslationToggle } from "./request-page-translation-toggle"
 import TranslateButton from "./translate-button"
 
 const readFrogLogoUrl = new URL(readFrogLogo, browser.runtime.getURL("/")).href
@@ -161,15 +162,15 @@ export default function FloatingButton() {
   const handleFloatingButtonClick = () => {
     if (floatingButton.clickAction === "translate") {
       const nextEnabled = !translationState.enabled
-      void sendMessage("tryToSetEnablePageTranslationOnContentScript", {
-        enabled: nextEnabled,
-        analyticsContext: nextEnabled
+      void requestPageTranslationToggle(
+        nextEnabled,
+        nextEnabled
           ? createFeatureUsageContext(
               ANALYTICS_FEATURE.PAGE_TRANSLATION,
               ANALYTICS_SURFACE.FLOATING_BUTTON,
             )
           : undefined,
-      })
+      )
       return
     }
 

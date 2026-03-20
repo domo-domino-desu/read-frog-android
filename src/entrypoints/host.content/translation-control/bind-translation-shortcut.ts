@@ -27,13 +27,10 @@ export async function bindTranslationShortcutKey(pageTranslationManager: PageTra
   const registration = HotkeyManager.getInstance().register(
     shortcut as Hotkey,
     () => {
-      if (pageTranslationManager.isActive) {
-        pageTranslationManager.stop()
-      } else {
-        void pageTranslationManager.start(
-          createFeatureUsageContext(ANALYTICS_FEATURE.PAGE_TRANSLATION, ANALYTICS_SURFACE.SHORTCUT),
-        )
-      }
+      void pageTranslationManager.setEnabled(
+        !pageTranslationManager.isActive,
+        createFeatureUsageContext(ANALYTICS_FEATURE.PAGE_TRANSLATION, ANALYTICS_SURFACE.SHORTCUT),
+      )
     },
     {
       ignoreInputs: true,

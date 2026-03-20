@@ -2,10 +2,10 @@ import type { FloatingButtonSide } from "@/types/config/floating-button"
 import { RiTranslate } from "@remixicon/react"
 import { IconCheck } from "@tabler/icons-react"
 import { useAtomValue } from "jotai"
-import { sendMessage } from "@/utils/message"
 import { cn } from "@/utils/styles/utils"
 import { enablePageTranslationAtom } from "../../atoms"
 import HiddenButton from "./components/hidden-button"
+import { requestPageTranslationToggle } from "./request-page-translation-toggle"
 
 export default function TranslateButton({
   className,
@@ -26,7 +26,7 @@ export default function TranslateButton({
       side={side}
       expanded={expanded}
       onClick={() => {
-        void sendMessage("tryToSetEnablePageTranslationOnContentScript", { enabled: !isEnabled })
+        void requestPageTranslationToggle(!isEnabled)
       }}
     >
       <IconCheck

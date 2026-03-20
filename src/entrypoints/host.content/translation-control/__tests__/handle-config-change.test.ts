@@ -7,21 +7,16 @@ function createMockConfig(mode: "bilingual" | "translationOnly"): Config {
   return { translate: { mode } } as Config
 }
 
-function createMockManager(isActive: boolean) {
-  const start = vi.fn<(...args: any[]) => any>().mockResolvedValue(undefined)
-  const stop = vi.fn<(...args: any[]) => any>()
-  const manager = {
+function createMockManager(isActive: boolean): PageTranslationManager {
+  return {
     isActive,
-    start,
-    stop,
+    setEnabled: vi.fn().mockResolvedValue(undefined),
   } as unknown as PageTranslationManager
-
-  return { manager, start, stop }
 }
 
 describe("handleTranslationModeChange", () => {
   it("should trigger re-translation when mode changes and manager is active", () => {
-    const { manager, start, stop } = createMockManager(true)
+    const manager = createMockManager(true)
 
     handleTranslationModeChange(
       createMockConfig("translationOnly"),
@@ -29,12 +24,12 @@ describe("handleTranslationModeChange", () => {
       manager,
     )
 
-    expect(stop).toHaveBeenCalled()
-    expect(start).toHaveBeenCalled()
+    expect(manager.setEnabled).toHaveBeenNthCalledWith(1, false)
+    expect(manager.setEnabled).toHaveBeenNthCalledWith(2, true)
   })
 
   it("should not trigger when mode stays the same", () => {
-    const { manager, stop } = createMockManager(true)
+    const manager = createMockManager(true)
 
     handleTranslationModeChange(
       createMockConfig("bilingual"),
@@ -42,11 +37,11 @@ describe("handleTranslationModeChange", () => {
       manager,
     )
 
-    expect(stop).not.toHaveBeenCalled()
+    expect(manager.setEnabled).not.toHaveBeenCalled()
   })
 
   it("should not trigger when manager is not active", () => {
-    const { manager, stop } = createMockManager(false)
+    const manager = createMockManager(false)
 
     handleTranslationModeChange(
       createMockConfig("translationOnly"),
@@ -54,6 +49,6 @@ describe("handleTranslationModeChange", () => {
       manager,
     )
 
-    expect(stop).not.toHaveBeenCalled()
+    expect(manager.setEnabled).not.toHaveBeenCalled()
   })
 })
