@@ -403,7 +403,7 @@ export default function FloatingButton() {
         <TranslateButton
           side={floatingButtonSide}
           expanded={isFloatingButtonExpanded}
-          onClick={revealMobileActions}
+          onClick={() => revealMobileActions()}
         />
       )}
       <div className="relative">
