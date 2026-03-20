@@ -17,8 +17,11 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/base-ui/sidebar"
 import { i18n } from "@/utils/i18n"
+import { supportsContextMenu } from "@/utils/platform"
 
-const OVERLAY_TOOLS_PATHS = ["/floating-button", "/selection-toolbar", "/context-menu"] as const
+const OVERLAY_TOOLS_PATHS = supportsContextMenu
+  ? ["/floating-button", "/selection-toolbar", "/context-menu"]
+  : ["/floating-button", "/selection-toolbar"]
 
 export function SettingsNav() {
   const { pathname } = useLocation()
@@ -126,25 +129,29 @@ export function SettingsNav() {
                       <span>{i18n.t("options.overlayTools.selectionToolbar.title")}</span>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
-                  <SidebarMenuSubItem>
-                    <SidebarMenuSubButton
-                      render={<Link to="/context-menu" />}
-                      isActive={pathname === "/context-menu"}
-                    >
-                      <span>{i18n.t("options.overlayTools.contextMenu.title")}</span>
-                    </SidebarMenuSubButton>
-                  </SidebarMenuSubItem>
+                  {supportsContextMenu && (
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton
+                        render={<Link to="/context-menu" />}
+                        isActive={pathname === "/context-menu"}
+                      >
+                        <span>{i18n.t("options.overlayTools.contextMenu.title")}</span>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  )}
                 </SidebarMenuSub>
               </CollapsibleContent>
             </SidebarMenuItem>
           </Collapsible>
 
-          <SidebarMenuItem>
-            <SidebarMenuButton render={<Link to="/tts" />} isActive={pathname === "/tts"}>
-              <Icon icon="tabler:speakerphone" />
-              <span>{i18n.t("options.tts.title")}</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {import.meta.env.BROWSER !== "firefox" && (
+            <SidebarMenuItem>
+              <SidebarMenuButton render={<Link to="/tts" />} isActive={pathname === "/tts"}>
+                <Icon icon="tabler:speakerphone" />
+                <span>{i18n.t("options.tts.title")}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
 
           <SidebarMenuItem>
             <SidebarMenuButton

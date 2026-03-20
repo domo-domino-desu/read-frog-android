@@ -1,6 +1,6 @@
 import type { ComponentType } from "react"
 import { lazy, Suspense } from "react"
-import { Route, Routes } from "react-router"
+import { Navigate, Route, Routes } from "react-router"
 import { ROUTE_DEFS } from "./app-sidebar/nav-items"
 import { GeneralPage } from "./pages/general"
 
@@ -75,6 +75,7 @@ export default function App() {
           const Component = ROUTE_COMPONENTS[path]
           return <Route key={path} path={path} element={<Component />} />
         })}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
   )

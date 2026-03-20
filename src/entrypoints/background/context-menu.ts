@@ -11,6 +11,7 @@ import {
 } from "@/utils/constants/storage-keys"
 import { i18n } from "@/utils/i18n"
 import { sendMessage } from "@/utils/message"
+import { supportsContextMenu } from "@/utils/platform"
 import { ensureInitializedConfig } from "./config"
 import { getPageTranslationEnabled, setPageTranslationEnabled } from "./page-translation-state"
 
@@ -29,6 +30,8 @@ function getSelectionCustomActionMenuId(actionId: string) {
  * before Chrome completes initialization
  */
 export function registerContextMenuListeners() {
+  if (!supportsContextMenu) return
+
   // Listen for config changes to update context menu
   storage.watch<Config>(`local:${CONFIG_STORAGE_KEY}`, async (newConfig) => {
     if (newConfig) {
@@ -79,6 +82,8 @@ export function registerContextMenuListeners() {
  * This can be called asynchronously after listeners are registered
  */
 export async function initializeContextMenu() {
+  if (!supportsContextMenu) return
+
   // Ensure config is initialized before setting up context menu
   const config = await ensureInitializedConfig()
   if (!config) {
@@ -92,6 +97,8 @@ export async function initializeContextMenu() {
  * Update context menu items based on config
  */
 async function updateContextMenuItems(config: Config) {
+  if (!supportsContextMenu) return
+
   // Remove all existing menu items first
   await browser.contextMenus.removeAll()
 
@@ -143,6 +150,8 @@ async function updateContextMenuItems(config: Config) {
  * @param enabled - Optional: if provided, use this value instead of reading from storage
  */
 async function updateTranslateMenuTitle(tabId: number, enabled?: boolean) {
+  if (!supportsContextMenu) return
+
   const config = await ensureInitializedConfig()
   if (!config?.contextMenu.enabled) {
     return
@@ -208,6 +217,8 @@ async function handleContextMenuClick(
  * Handle translate menu click - toggle page translation
  */
 async function handleTranslateClick(tabId: number) {
+  if (!supportsContextMenu) return
+
   const isCurrentlyTranslated = await getPageTranslationEnabled(tabId)
   const newState = !isCurrentlyTranslated
 
