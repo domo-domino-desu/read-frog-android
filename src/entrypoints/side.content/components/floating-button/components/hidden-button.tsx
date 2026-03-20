@@ -8,6 +8,7 @@ export default function HiddenButton({
   className,
   side = "right",
   expanded = false,
+  title,
 }: {
   icon: React.ReactNode
   onClick: () => void
@@ -15,10 +16,13 @@ export default function HiddenButton({
   className?: string
   side?: FloatingButtonSide
   expanded?: boolean
+  title?: string
 }) {
   return (
     <button
       type="button"
+      title={title}
+      aria-label={title}
       className={cn(
         "cursor-pointer rounded-full border border-border bg-white p-1.5 text-neutral-600 shadow-lg transition-transform duration-300 hover:bg-neutral-100 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800",
         side === "right" ? "mr-2" : "ml-2",
