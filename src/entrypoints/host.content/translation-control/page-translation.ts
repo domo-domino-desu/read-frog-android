@@ -55,6 +55,9 @@ interface IPageTranslationManager {
    */
   readonly isActive: boolean
 
+  /** Serializes state transitions so concurrent toggle requests cannot race. */
+  setEnabled: (enabled: boolean, analyticsContext?: FeatureUsageContext) => Promise<void>
+
   /**
    * Starts the automatic page translation functionality
    * Registers observers, touch triggers and set storage
@@ -113,6 +116,9 @@ export class PageTranslationManager implements IPageTranslationManager {
   private lastSourceTitle: string | null = null
   private lastAppliedTranslatedTitle: string | null = null
   private titleRequestVersion = 0
+  private desiredEnabled = false
+  private transitionPromise: Promise<void> | null = null
+  private pendingEnableAnalyticsContext: FeatureUsageContext | undefined
 
   constructor(intersectionOptions: SimpleIntersectionOptions = {}) {
     if (intersectionOptions.threshold !== undefined) {
@@ -131,51 +137,69 @@ export class PageTranslationManager implements IPageTranslationManager {
     return this.isPageTranslating
   }
 
+  async setEnabled(enabled: boolean, analyticsContext?: FeatureUsageContext): Promise<void> {
+    this.desiredEnabled = enabled
+    if (enabled) {
+      this.pendingEnableAnalyticsContext = window === window.top ? analyticsContext : undefined
+    }
+
+    if (this.transitionPromise) return this.transitionPromise
+
+    this.transitionPromise = this.runTransitionLoop()
+    try {
+      await this.transitionPromise
+    } finally {
+      this.transitionPromise = null
+    }
+  }
+
   async start(analyticsContext?: FeatureUsageContext): Promise<void> {
     if (this.isPageTranslating) {
       console.warn("PageTranslationManager is already active")
       return
     }
 
+    this.desiredEnabled = true
     const trackedContext = window === window.top ? analyticsContext : undefined
+    let didNotifyEnabled = false
 
-    const config = await getLocalConfig()
-    if (!config) {
-      console.warn("Config is not initialized")
-      if (trackedContext) {
-        void trackFeatureUsed({
-          ...trackedContext,
-          outcome: "failure",
-        })
-      }
-      return
-    }
-
-    if (
-      !validateTranslationConfigAndToast({
-        providersConfig: config.providersConfig,
-        translate: config.translate,
-        language: config.language,
-      })
-    ) {
-      if (trackedContext) {
-        void trackFeatureUsed({
-          ...trackedContext,
-          outcome: "failure",
-        })
-      }
-      return
-    }
+    // Reserve the active slot before the first await so concurrent enable
+    // requests join this transition instead of creating duplicate observers.
+    this.isPageTranslating = true
 
     try {
+      const config = await getLocalConfig()
+      if (!config) {
+        this.handleStartFailure()
+        console.warn("Config is not initialized")
+        if (trackedContext) {
+          void trackFeatureUsed({ ...trackedContext, outcome: "failure" })
+        }
+        return
+      }
+
+      if (
+        !validateTranslationConfigAndToast({
+          providersConfig: config.providersConfig,
+          translate: config.translate,
+          language: config.language,
+        })
+      ) {
+        this.handleStartFailure()
+        if (trackedContext) {
+          void trackFeatureUsed({ ...trackedContext, outcome: "failure" })
+        }
+        return
+      }
+
       const providerConfig = resolveProviderConfig(config, "translate")
 
       await sendMessage("setAndNotifyPageTranslationStateChangedByManager", {
         enabled: true,
         url: window.location.href,
       })
+      didNotifyEnabled = true
 
-      this.isPageTranslating = true
       this.translationSessionVersion += 1
 
       const siteRule = getEffectiveSiteRule(config, window.location.href)
@@ -223,6 +247,7 @@ export class PageTranslationManager implements IPageTranslationManager {
         })
       }
     } catch (error) {
+      this.handleStartFailure(didNotifyEnabled)
       if (trackedContext) {
         void trackFeatureUsed({
           ...trackedContext,
@@ -234,6 +259,7 @@ export class PageTranslationManager implements IPageTranslationManager {
   }
 
   stop(): void {
+    this.desiredEnabled = false
     this.stopInternal({ notify: true })
   }
 
@@ -316,16 +342,13 @@ export class PageTranslationManager implements IPageTranslationManager {
     const onEnd = () => {
       if (!startTouches) return
       if (performance.now() - startTime < PageTranslationManager.MAX_DURATION) {
-        if (this.isPageTranslating) {
-          this.stop()
-        } else {
-          void this.start(
-            createFeatureUsageContext(
-              ANALYTICS_FEATURE.PAGE_TRANSLATION,
-              ANALYTICS_SURFACE.TOUCH_GESTURE,
-            ),
-          )
-        }
+        void this.setEnabled(
+          !this.isPageTranslating,
+          createFeatureUsageContext(
+            ANALYTICS_FEATURE.PAGE_TRANSLATION,
+            ANALYTICS_SURFACE.TOUCH_GESTURE,
+          ),
+        )
       }
       reset()
     }
@@ -346,6 +369,24 @@ export class PageTranslationManager implements IPageTranslationManager {
 
   private shouldManageDocumentTitle(): boolean {
     return window === window.top
+  }
+
+  private async runTransitionLoop(): Promise<void> {
+    while (this.isPageTranslating !== this.desiredEnabled) {
+      if (this.desiredEnabled) {
+        const analyticsContext = this.pendingEnableAnalyticsContext
+        this.pendingEnableAnalyticsContext = undefined
+        await this.start(analyticsContext)
+      } else {
+        this.stopInternal({ notify: true })
+        await Promise.resolve()
+      }
+    }
+  }
+
+  private handleStartFailure(notify: boolean = false): void {
+    this.desiredEnabled = false
+    this.stopInternal({ notify })
   }
 
   private async primeDocumentTitleContext(shouldPrimeWebPageContext: boolean): Promise<void> {

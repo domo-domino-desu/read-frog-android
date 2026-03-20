@@ -54,7 +54,7 @@ export async function bootstrapHostContent(
     logger.error("Failed to check translation state:", error)
   }
   if (translationEnabled) {
-    void manager.start()
+    void manager.setEnabled(true)
   }
 
   const handleUrlChange = async (from: string, to: string) => {
@@ -64,7 +64,7 @@ export async function bootstrapHostContent(
         if (areSamePageTranslationOrigin(from, to)) {
           await manager.restart()
         } else {
-          manager.stop()
+          await manager.setEnabled(false)
         }
       }
       // Only the top frame should detect and set language to avoid race conditions from iframes
@@ -83,12 +83,7 @@ export async function bootstrapHostContent(
   // Listen for translation state changes from background
   const cleanupTranslationStateListener = onMessage("askManagerToTogglePageTranslation", (msg) => {
     const { enabled, analyticsContext } = msg.data
-    if (enabled === manager.isActive) return
-    if (enabled) {
-      void manager.start(window === window.top ? analyticsContext : undefined)
-    } else {
-      manager.stop()
-    }
+    return manager.setEnabled(enabled, window === window.top ? analyticsContext : undefined)
   })
 
   const cleanupFrameTranslationStateListener =
@@ -96,12 +91,7 @@ export async function bootstrapHostContent(
       ? () => {}
       : onMessage("notifyTranslationStateChanged", (msg) => {
           const { enabled } = msg.data
-          if (enabled === manager.isActive) return
-          if (enabled) {
-            void manager.start()
-          } else {
-            manager.stop()
-          }
+          return manager.setEnabled(enabled)
         })
 
   const cleanupDetectedLanguageRefreshListener =

@@ -83,9 +83,14 @@ vi.mock("@/utils/message", () => ({
 }))
 
 class MockIntersectionObserver {
+  static instances: MockIntersectionObserver[] = []
   observe = vi.fn<(...args: any[]) => any>()
   unobserve = vi.fn<(...args: any[]) => any>()
   disconnect = vi.fn<(...args: any[]) => any>()
+
+  constructor() {
+    MockIntersectionObserver.instances.push(this)
+  }
 }
 
 function createDeferred<T>() {
@@ -112,6 +117,7 @@ describe("pageTranslationManager title handling", () => {
     document.title = "Original Title"
 
     vi.stubGlobal("IntersectionObserver", MockIntersectionObserver)
+    MockIntersectionObserver.instances = []
 
     mockGetDetectedCodeFromStorage.mockResolvedValue("eng")
     mockGetLocalConfig.mockResolvedValue(DEFAULT_CONFIG)
@@ -239,5 +245,67 @@ describe("pageTranslationManager title handling", () => {
 
     manager.stop()
     expect(document.title).toBe("Updated Source Title")
+  })
+
+  it("coalesces concurrent enable requests into a single startup flow", async () => {
+    const configDeferred = createDeferred<typeof DEFAULT_CONFIG | null>()
+    mockGetLocalConfig.mockImplementationOnce(() => configDeferred.promise)
+
+    const manager = new PageTranslationManager()
+    const firstEnable = manager.setEnabled(true)
+    const secondEnable = manager.setEnabled(true)
+
+    expect(manager.isActive).toBe(true)
+    configDeferred.resolve(DEFAULT_CONFIG)
+    await Promise.all([firstEnable, secondEnable])
+
+    expect(MockIntersectionObserver.instances).toHaveLength(1)
+    expect(mockWalkAndLabelElement).toHaveBeenCalledTimes(1)
+    expect(
+      mockSendMessage.mock.calls.filter(
+        ([type, payload]) =>
+          type === "setAndNotifyPageTranslationStateChangedByManager" &&
+          payload?.enabled === true,
+      ),
+    ).toHaveLength(1)
+  })
+
+  it("applies a disable request after an in-flight enable finishes", async () => {
+    const configDeferred = createDeferred<typeof DEFAULT_CONFIG | null>()
+    mockGetLocalConfig.mockImplementationOnce(() => configDeferred.promise)
+
+    const manager = new PageTranslationManager()
+    const enablePromise = manager.setEnabled(true)
+    const disablePromise = manager.setEnabled(false)
+
+    configDeferred.resolve(DEFAULT_CONFIG)
+    await Promise.all([enablePromise, disablePromise])
+
+    expect(manager.isActive).toBe(false)
+    expect(mockRemoveAllTranslatedWrapperNodes).toHaveBeenCalledTimes(1)
+    expect(
+      mockSendMessage.mock.calls.filter(
+        ([type]) => type === "setAndNotifyPageTranslationStateChangedByManager",
+      ),
+    ).toEqual([
+      ["setAndNotifyPageTranslationStateChangedByManager", { enabled: true, url: window.location.href }],
+      ["setAndNotifyPageTranslationStateChangedByManager", { enabled: false, url: window.location.href }],
+    ])
+  })
+
+  it("ignores repeated enable requests once translation is active", async () => {
+    const manager = new PageTranslationManager()
+
+    await manager.setEnabled(true)
+    await manager.setEnabled(true)
+
+    expect(MockIntersectionObserver.instances).toHaveLength(1)
+    expect(
+      mockSendMessage.mock.calls.filter(
+        ([type, payload]) =>
+          type === "setAndNotifyPageTranslationStateChangedByManager" &&
+          payload?.enabled === true,
+      ),
+    ).toHaveLength(1)
   })
 })
