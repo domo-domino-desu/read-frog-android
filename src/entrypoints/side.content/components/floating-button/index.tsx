@@ -27,6 +27,7 @@ import TranslateButton from "./translate-button"
 
 const readFrogLogoUrl = new URL(readFrogLogo, browser.runtime.getURL("/")).href
 const LONG_PRESS_DELAY_MS = 350
+const MOBILE_ACTIONS_AUTO_HIDE_DELAY_MS = 3000
 const DRAG_START_DISTANCE_PX = 6
 const MIN_FLOATING_CONTAINER_TOP_PX = 30
 const FLOATING_CONTAINER_BOTTOM_CLEARANCE_PX = 200
@@ -48,6 +49,7 @@ interface PendingDragState {
   buttonWidth: number
   buttonHeight: number
   hasActiveDrag: boolean
+  isMobilePointer: boolean
   longPressTimerId: number
 }
 
@@ -126,14 +128,17 @@ export default function FloatingButton() {
   const [isDraggingButton, setIsDraggingButton] = useAtom(isDraggingButtonAtom)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isHitAreaExpanded, setIsHitAreaExpanded] = useState(false)
+  const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false)
   const [dragPreviewPosition, setDragPreviewPosition] = useState<DragPoint | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mainButtonRef = useRef<HTMLDivElement | null>(null)
   const pendingDragRef = useRef<PendingDragState | null>(null)
   const lastDragPreviewRef = useRef<DragPoint | null>(null)
+  const mobileActionsTimerRef = useRef<number | null>(null)
   const isFloatingButtonLocked = floatingButton.locked
   const floatingButtonSide = getFloatingButtonSide(floatingButton.side)
-  const isFloatingButtonExpanded = isHitAreaExpanded || isDropdownOpen
+  const isFloatingButtonExpanded =
+    isHitAreaExpanded || isDropdownOpen || isMobileActionsOpen
   const isMainButtonAttached = isFloatingButtonLocked || isFloatingButtonExpanded
 
   useEffect(() => {
@@ -156,8 +161,49 @@ export default function FloatingButton() {
       if (pendingDrag) {
         window.clearTimeout(pendingDrag.longPressTimerId)
       }
+      if (mobileActionsTimerRef.current !== null) {
+        window.clearTimeout(mobileActionsTimerRef.current)
+      }
     }
   }, [])
+
+  const isCoarsePointer = () =>
+    typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches
+
+  const clearMobileActionsTimer = () => {
+    if (mobileActionsTimerRef.current !== null) {
+      window.clearTimeout(mobileActionsTimerRef.current)
+      mobileActionsTimerRef.current = null
+    }
+  }
+
+  const startMobileActionsTimer = () => {
+    clearMobileActionsTimer()
+    mobileActionsTimerRef.current = window.setTimeout(() => {
+      setIsMobileActionsOpen(false)
+      mobileActionsTimerRef.current = null
+    }, MOBILE_ACTIONS_AUTO_HIDE_DELAY_MS)
+  }
+
+  const revealMobileActions = (forceOpen = false) => {
+    if (!forceOpen && !isCoarsePointer()) return
+
+    setIsMobileActionsOpen(true)
+    if (isDropdownOpen) {
+      clearMobileActionsTimer()
+    } else {
+      startMobileActionsTimer()
+    }
+  }
+
+  const handleDropdownOpenChange = (open: boolean) => {
+    setIsDropdownOpen(open)
+    if (open) {
+      clearMobileActionsTimer()
+    } else if (isMobileActionsOpen) {
+      startMobileActionsTimer()
+    }
+  }
 
   const handleFloatingButtonClick = () => {
     if (floatingButton.clickAction === "translate") {
@@ -190,6 +236,8 @@ export default function FloatingButton() {
     lastDragPreviewRef.current = nextPreviewPosition
     setDragPreviewPosition(nextPreviewPosition)
     setIsHitAreaExpanded(false)
+    clearMobileActionsTimer()
+    setIsMobileActionsOpen(false)
     setIsDropdownOpen(false)
     setIsDraggingButton(true)
   }
@@ -219,6 +267,7 @@ export default function FloatingButton() {
       buttonWidth: mainButtonRect.width || 40,
       buttonHeight: mainButtonRect.height || 40,
       hasActiveDrag: false,
+      isMobilePointer: e.pointerType === "touch" || isCoarsePointer(),
       longPressTimerId: window.setTimeout(startActiveDrag, LONG_PRESS_DELAY_MS),
     }
   }
@@ -285,6 +334,7 @@ export default function FloatingButton() {
 
     if (shouldTriggerClick) {
       handleFloatingButtonClick()
+      if (pendingDrag.isMobilePointer) revealMobileActions(true)
     }
   }
 
@@ -350,7 +400,11 @@ export default function FloatingButton() {
       onMouseLeave={handleMouseLeave}
     >
       {!isDraggingButton && (
-        <TranslateButton side={floatingButtonSide} expanded={isFloatingButtonExpanded} />
+        <TranslateButton
+          side={floatingButtonSide}
+          expanded={isFloatingButtonExpanded}
+          onClick={revealMobileActions}
+        />
       )}
       <div className="relative">
         <div
@@ -393,7 +447,7 @@ export default function FloatingButton() {
             <FloatingButtonCloseMenu
               expanded={isFloatingButtonExpanded}
               side={floatingButtonSide}
-              onDropdownOpenChange={setIsDropdownOpen}
+              onDropdownOpenChange={handleDropdownOpenChange}
             />
             <FloatingButtonLockControl
               expanded={isFloatingButtonExpanded}
@@ -407,7 +461,9 @@ export default function FloatingButton() {
           side={floatingButtonSide}
           expanded={isFloatingButtonExpanded}
           icon={<IconSettings className="h-5 w-5" />}
+          title="Open extension settings"
           onClick={() => {
+            revealMobileActions()
             void sendMessage("openOptionsPage", undefined)
           }}
         />
@@ -460,6 +516,7 @@ function FloatingButtonCloseMenu({
           <button
             type="button"
             aria-label="Close floating button"
+            title="Close floating button"
             className={cn(
               floatingButtonControlClassName,
               "-top-1",

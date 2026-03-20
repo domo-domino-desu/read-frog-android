@@ -11,10 +11,12 @@ export default function TranslateButton({
   className,
   side = "right",
   expanded = false,
+  onClick,
 }: {
   className?: string
   side?: FloatingButtonSide
   expanded?: boolean
+  onClick?: () => void
 }) {
   const translationState = useAtomValue(enablePageTranslationAtom)
   const isEnabled = translationState.enabled
@@ -25,8 +27,10 @@ export default function TranslateButton({
       className={className}
       side={side}
       expanded={expanded}
+      title="Toggle page translation"
       onClick={() => {
         void requestPageTranslationToggle(!isEnabled)
+        onClick?.()
       }}
     >
       <IconCheck
