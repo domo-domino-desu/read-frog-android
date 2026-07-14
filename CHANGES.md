@@ -30,3 +30,5 @@
 新增 `.github/workflows/sign-firefox-android.yml`。推送与 `package.json` 版本一致的 `v*` tag 时会自动构建 Android 包，并通过 Mozilla `unlisted` 渠道申请自分发签名；也可以手动指定尚未提交到 AMO 的已有 `v*` tag。Mozilla 返回的已签名 XPI 会附加到该 tag 对应的 GitHub Release。AMO JWT 只从仓库的 `MOZILLA_JWT_ISSUER` 和 `MOZILLA_JWT_SECRET` Actions Secrets 读取，不写入源码、构建包或 Actions artifact。
 
 构建环境允许在 `WXT_SKIP_ENV_VALIDATION=true` 时将空的 Google Client ID 与 PostHog 配置视为未配置，避免 GitHub 缺少这些可选 Secrets 时在 `pnpm install` 的 `wxt prepare` 阶段失败。本分支不再保留 Chrome/Edge 商店提交 workflow。
+
+移除 Husky 的 `pre-commit` 和 `pre-push` hook；提交信息格式检查的 `commit-msg` hook 仍然保留。由于已没有调用方，同时移除 `lint-staged` 开发依赖。
