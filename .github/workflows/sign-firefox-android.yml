@@ -65,7 +65,9 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        # setup-node already provides Node; do not install the devEngines
+        # runtime package into node_modules/.bin.
+        run: pnpm install --frozen-lockfile --no-runtime
 
       - name: Package Firefox Android
         run: pnpm zip:firefox-android
