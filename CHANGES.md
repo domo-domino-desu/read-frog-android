@@ -32,3 +32,5 @@
 构建环境允许在 `WXT_SKIP_ENV_VALIDATION=true` 时将空的 Google Client ID 与 PostHog 配置视为未配置，避免 GitHub 缺少这些可选 Secrets 时在 `pnpm install` 的 `wxt prepare` 阶段失败。本分支不再保留 Chrome/Edge 商店提交 workflow。
 
 移除 Husky 的 `pre-commit` 和 `pre-push` hook；提交信息格式检查的 `commit-msg` hook 仍然保留。由于已没有调用方，同时移除 `lint-staged` 开发依赖。
+
+GitHub Actions 最终精简为两个 workflow：任意 `push` 只构建 Firefox Android nightly release；推送与 `package.json` 版本一致的 `v*` tag 时申请 Mozilla `unlisted` 签名并发布 XPI。两者均允许手动触发，其中签名 workflow 要求指定已有的 `v*` tag。移除 Changesets 自动发版、PR 检查、过期 Issue、贡献者信任检查和其他机器人 workflow。
