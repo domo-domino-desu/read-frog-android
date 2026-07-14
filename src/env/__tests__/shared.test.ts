@@ -190,6 +190,24 @@ describe("extension env parsing", () => {
     })
   })
 
+  it("treats empty optional production env vars as unset when validation is skipped", () => {
+    expect(
+      parseResolvedExtensionEnv(
+        {
+          WXT_GOOGLE_CLIENT_ID: "",
+          WXT_POSTHOG_HOST: "",
+          WXT_POSTHOG_API_KEY: "",
+        },
+        true,
+        true,
+      ),
+    ).toMatchObject({
+      WXT_GOOGLE_CLIENT_ID: undefined,
+      WXT_POSTHOG_HOST: undefined,
+      WXT_POSTHOG_API_KEY: undefined,
+    })
+  })
+
   it("parses WXT_USE_LOCAL_PACKAGES strictly with zod stringbool", () => {
     expect(
       resolveExtensionEnv({

@@ -18,13 +18,15 @@
 - Google Drive OAuth 保留主线的类型化环境变量读取，并改成使用时才访问 `browser.identity`，避免 Android 在模块加载阶段因 API 缺失而崩溃。
 - 翻译竞态修复落到主线重构后的 `host.content/runtime.ts`，同时保留站点 CSS、页面标题翻译、重翻译预算、缓存清理和同源导航重启逻辑。
 - 悬浮按钮保留主线较新的左右停靠、锁定、长按/移动拖拽和 Firefox 侧栏提示；原分支的移动端辅助操作展开逻辑被合并到该实现，而不是退回旧版单侧布局。
-- Android zip 使用独立的 `*-firefox-android.zip` 文件名，避免 `zip:all` 覆盖桌面 Firefox 包；发布工作流也会上传该文件。
+- Android zip 使用独立的 `*-firefox-android.zip` 文件名，避免与其他 Firefox 构建混淆；本分支的发布工作流只构建并上传 Firefox Android 包及对应源码包。
 - 将上游 Firefox 扩展 ID 替换为本分支独立的 `read-frog-android@domo-domino-desu.github.io`，避免与官方 Read Frog 的 AMO 身份和更新渠道冲突。
 
 ## 每次提交的 Nightly Release
 
-新增 `.github/workflows/build-every-push.yml`。任意分支的每次 `push` 都会打包 Chrome、Edge、桌面 Firefox 和 Firefox Android，然后创建一个独立的 `Nightly <UTC 时间> (<短 SHA>)` prerelease。对应 tag 使用唯一的 `nightly-<UTC 时间>-<短 SHA>`，不会移动或覆盖已有 tag/release。工作流不上传 Actions artifact；手动触发同样可用。
+新增 `.github/workflows/build-every-push.yml`。任意分支的每次 `push` 都只打包 Firefox Android 和对应源码包，然后创建一个独立的 `Nightly <UTC 时间> (<短 SHA>)` prerelease。对应 tag 使用唯一的 `nightly-<UTC 时间>-<短 SHA>`，不会移动或覆盖已有 tag/release。工作流不上传 Actions artifact；手动触发同样可用。
 
 ## Firefox Android 自动签名
 
 新增 `.github/workflows/sign-firefox-android.yml`。推送与 `package.json` 版本一致的 `v*` tag 时会自动构建 Android 包，并通过 Mozilla `unlisted` 渠道申请自分发签名；也可以手动指定尚未提交到 AMO 的已有 `v*` tag。Mozilla 返回的已签名 XPI 会附加到该 tag 对应的 GitHub Release。AMO JWT 只从仓库的 `MOZILLA_JWT_ISSUER` 和 `MOZILLA_JWT_SECRET` Actions Secrets 读取，不写入源码、构建包或 Actions artifact。
+
+构建环境允许在 `WXT_SKIP_ENV_VALIDATION=true` 时将空的 Google Client ID 与 PostHog 配置视为未配置，避免 GitHub 缺少这些可选 Secrets 时在 `pnpm install` 的 `wxt prepare` 阶段失败。本分支不再保留 Chrome/Edge 商店提交 workflow。

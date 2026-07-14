@@ -14,7 +14,7 @@ env:
 
 jobs:
   package:
-    name: Package all browser targets
+    name: Package Firefox Android
     runs-on: ubuntu-latest
 
     steps:
@@ -33,8 +33,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Package Chrome, Edge, Firefox, and Firefox Android
-        run: pnpm zip:all
+      - name: Package Firefox Android
+        run: pnpm zip:firefox-android
 
       - name: Create timestamped nightly release
         env:
@@ -45,7 +45,9 @@ jobs:
           SHORT_SHA=${GITHUB_SHA::7}
           NIGHTLY_TAG="nightly-${TIMESTAMP}-${SHORT_SHA}"
 
-          gh release create "$NIGHTLY_TAG" .output/*.zip \
+          gh release create "$NIGHTLY_TAG" \
+            .output/*-firefox-android.zip \
+            .output/*-sources.zip \
             --target "$GITHUB_SHA" \
             --title "Nightly ${DISPLAY_TIME} (${SHORT_SHA})" \
             --notes "Automated packages for commit $GITHUB_SHA from ref $GITHUB_REF_NAME." \
