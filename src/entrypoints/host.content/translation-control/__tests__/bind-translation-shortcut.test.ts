@@ -26,15 +26,17 @@ vi.mock("@/utils/config/storage", () => ({
 }))
 
 function createManager(isActive = false) {
+  const setEnabled = vi.fn<(...args: any[]) => any>().mockResolvedValue(undefined)
   const start = vi.fn<(...args: any[]) => any>().mockResolvedValue(undefined)
   const stop = vi.fn<(...args: any[]) => any>()
   const manager = {
     isActive,
+    setEnabled,
     start,
     stop,
   } as unknown as PageTranslationManager
 
-  return { manager, start, stop }
+  return { manager, setEnabled, start, stop }
 }
 
 describe("bindTranslationShortcutKey", () => {
@@ -80,11 +82,11 @@ describe("bindTranslationShortcutKey", () => {
       },
     })
 
-    const { manager: inactiveManager, start: inactiveStart } = createManager(false)
+    const { manager: inactiveManager, setEnabled: inactiveSetEnabled } = createManager(false)
     await bindTranslationShortcutKey(inactiveManager)
     const startCallback = mockRegister.mock.calls[0]?.[1]
     startCallback?.({}, { hotkey: "Mod+E" })
-    expect(inactiveStart).toHaveBeenCalledTimes(1)
+    expect(inactiveSetEnabled).toHaveBeenCalledWith(true, expect.any(Object))
 
     vi.clearAllMocks()
     mockRegister.mockReturnValue({
@@ -98,11 +100,11 @@ describe("bindTranslationShortcutKey", () => {
       },
     })
 
-    const { manager: activeManager, stop: activeStop } = createManager(true)
+    const { manager: activeManager, setEnabled: activeSetEnabled } = createManager(true)
     await bindTranslationShortcutKey(activeManager)
     const stopCallback = mockRegister.mock.calls[0]?.[1]
     stopCallback?.({}, { hotkey: "Mod+E" })
-    expect(activeStop).toHaveBeenCalledTimes(1)
+    expect(activeSetEnabled).toHaveBeenCalledWith(false, expect.any(Object))
   })
 
   it("skips registration when the shortcut is empty", async () => {

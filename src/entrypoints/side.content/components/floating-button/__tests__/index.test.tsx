@@ -2,7 +2,7 @@
 import type { FloatingButtonConfig } from "@/types/config/floating-button"
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { atom, createStore, Provider } from "jotai"
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { configFieldsAtomMap } from "@/utils/atoms/config"
 import { sendMessage } from "@/utils/message"
 import FloatingButton from ".."
@@ -75,6 +75,10 @@ beforeAll(() => {
   }
 
   vi.stubGlobal("ResizeObserver", ResizeObserverMock)
+})
+
+beforeEach(() => {
+  vi.mocked(sendMessage).mockResolvedValue(undefined)
 })
 
 afterEach(() => {
