@@ -22,10 +22,13 @@ import { deepQueryTopLevelSelector } from "@/utils/host/dom/find"
 import { walkAndLabelElement } from "@/utils/host/dom/traversal"
 import {
   findStaleBilingualLayoutSource,
+  findStaleTranslationOnlyAnchor,
+  wasCharacterDataChangeExtensionDriven,
   wasNodeRemovedByExtension,
 } from "@/utils/host/translate/core/translation-state"
 import {
   removeAllTranslatedWrapperNodes,
+  translateNodes,
   translateNodesBilingualMode,
   translateWalkedElement,
 } from "@/utils/host/translate/node-manipulation"
@@ -666,6 +669,11 @@ export class PageTranslationManager implements IPageTranslationManager {
     // Wrapper classes/styles are set before insertion and data-read-frog-*
     // labels are not observed, so attribute records are never self-caused.
     if (record.type === "attributes") return false
+    // In-place swaps/restores write the site's own text nodes (no wrapper
+    // ancestor); classify by the exact value the extension last wrote.
+    if (record.type === "characterData" && wasCharacterDataChangeExtensionDriven(record.target)) {
+      return true
+    }
     const targetElement = isHTMLElement(record.target) ? record.target : record.target.parentElement
     if (targetElement?.closest(`.${CONTENT_WRAPPER_CLASS}`)) return true
     if (record.type !== "childList") return false
@@ -717,6 +725,10 @@ export class PageTranslationManager implements IPageTranslationManager {
     for (const record of hostRecords) {
       const staleSource = findStaleBilingualLayoutSource(record.target)
       if (staleSource) staleTranslatedSources.add(staleSource)
+      // In-place-swapped anchors (translationOnly): host re-renders such as an
+      // expand/"show more" must retranslate, not stay in the source language.
+      const staleAnchor = findStaleTranslationOnlyAnchor(record.target)
+      if (staleAnchor) staleTranslatedSources.add(staleAnchor)
     }
     staleTranslatedSources.forEach((source) => {
       const nextVersion = (this.translatedSourceMutationVersions.get(source) ?? 0) + 1
@@ -787,8 +799,17 @@ export class PageTranslationManager implements IPageTranslationManager {
         }
         passes += 1
         handledVersion = mutationVersions.get(source) ?? 0
-        walkAndLabelElement(source, walkId, config)
-        await translateNodesBilingualMode([source], walkId, config)
+        if (config.translate.mode === "translationOnly") {
+          // Swapped-anchor staleness: translateNodes routes to the
+          // translationOnly path, which restores surviving swaps first so the
+          // provider sees current host text, then re-swaps. Keyed on the MODE,
+          // not on anchor-state presence — a scheduled retry must never insert
+          // bilingual wrappers into a translationOnly session.
+          await translateNodes([source], walkId, false, config)
+        } else {
+          walkAndLabelElement(source, walkId, config)
+          await translateNodesBilingualMode([source], walkId, config)
+        }
       } while (
         this.isPageTranslating &&
         this.translationSessionVersion === sessionVersion &&
