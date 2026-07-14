@@ -28,7 +28,7 @@
     "zip": "wxt zip",
     "zip:edge": "wxt zip -b edge",
     "zip:firefox": "wxt zip -b firefox --mv3",
-    "zip:firefox-android": "WXT_FIREFOX_ANDROID=true wxt zip -b firefox --mv3 --name firefox-android",
+    "zip:firefox-android": "WXT_FIREFOX_ANDROID=true wxt zip -b firefox --mv3",
     "zip:all": "pnpm zip && pnpm zip:edge && pnpm zip:firefox && pnpm zip:firefox-android",
     "release": "changeset tag && git push origin --tags",
     "prepare": "husky"

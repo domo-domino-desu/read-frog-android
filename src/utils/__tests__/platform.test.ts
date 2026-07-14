@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-async function loadPlatformModule(
-  browser: string,
-  wxtFirefoxAndroid?: string,
-) {
+async function loadPlatformModule(browser: string, wxtFirefoxAndroid?: string) {
   vi.resetModules()
   vi.unstubAllEnvs()
   vi.stubEnv("BROWSER", browser)

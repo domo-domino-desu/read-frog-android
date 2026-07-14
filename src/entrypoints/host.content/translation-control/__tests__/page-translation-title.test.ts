@@ -264,10 +264,10 @@ describe("pageTranslationManager title handling", () => {
     expect(
       mockSendMessage.mock.calls.filter(
         ([type, payload]) =>
-          type === "setAndNotifyPageTranslationStateChangedByManager" &&
-          payload?.enabled === true,
+          type === "setAndNotifyPageTranslationStateChangedByManager" && payload?.enabled === true,
       ),
     ).toHaveLength(1)
+    manager.stop()
   })
 
   it("applies a disable request after an in-flight enable finishes", async () => {
@@ -288,8 +288,14 @@ describe("pageTranslationManager title handling", () => {
         ([type]) => type === "setAndNotifyPageTranslationStateChangedByManager",
       ),
     ).toEqual([
-      ["setAndNotifyPageTranslationStateChangedByManager", { enabled: true, url: window.location.href }],
-      ["setAndNotifyPageTranslationStateChangedByManager", { enabled: false, url: window.location.href }],
+      [
+        "setAndNotifyPageTranslationStateChangedByManager",
+        { enabled: true, url: window.location.href },
+      ],
+      [
+        "setAndNotifyPageTranslationStateChangedByManager",
+        { enabled: false, url: window.location.href },
+      ],
     ])
   })
 
@@ -303,9 +309,9 @@ describe("pageTranslationManager title handling", () => {
     expect(
       mockSendMessage.mock.calls.filter(
         ([type, payload]) =>
-          type === "setAndNotifyPageTranslationStateChangedByManager" &&
-          payload?.enabled === true,
+          type === "setAndNotifyPageTranslationStateChangedByManager" && payload?.enabled === true,
       ),
     ).toHaveLength(1)
+    manager.stop()
   })
 })

@@ -138,7 +138,7 @@ jobs:
             TAG="v$VERSION"
           fi
 
-          gh release upload "$TAG" .output/*-chrome.zip .output/*-edge.zip .output/*-firefox.zip .output/*-sources.zip --clobber
+          gh release upload "$TAG" .output/*-chrome.zip .output/*-edge.zip .output/*-firefox.zip .output/*-firefox-android.zip .output/*-sources.zip --clobber
         env:
           GH_TOKEN: ${{ github.token }}
 

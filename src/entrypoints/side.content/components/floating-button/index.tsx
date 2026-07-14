@@ -137,8 +137,7 @@ export default function FloatingButton() {
   const mobileActionsTimerRef = useRef<number | null>(null)
   const isFloatingButtonLocked = floatingButton.locked
   const floatingButtonSide = getFloatingButtonSide(floatingButton.side)
-  const isFloatingButtonExpanded =
-    isHitAreaExpanded || isDropdownOpen || isMobileActionsOpen
+  const isFloatingButtonExpanded = isHitAreaExpanded || isDropdownOpen || isMobileActionsOpen
   const isMainButtonAttached = isFloatingButtonLocked || isFloatingButtonExpanded
 
   useEffect(() => {

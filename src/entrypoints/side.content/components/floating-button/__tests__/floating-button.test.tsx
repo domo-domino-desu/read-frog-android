@@ -1,25 +1,21 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render as renderUi, screen, waitFor } from "@testing-library/react"
 import { createStore, Provider } from "jotai"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { enablePageTranslationAtom, isDraggingButtonAtom, isSideOpenAtom } from "../../../atoms"
 import FloatingButton from "../index"
 
-const {
-  atomRefs,
-  createFeatureUsageContextMock,
-  sendMessageMock,
-} = vi.hoisted(() => ({
+const { atomRefs, createFeatureUsageContextMock, sendMessageMock } = vi.hoisted(() => ({
   atomRefs: {
     floatingButtonBaseAtom: undefined as any,
     sideContentBaseAtom: undefined as any,
   },
-  createFeatureUsageContextMock: vi.fn(() => ({
+  createFeatureUsageContextMock: vi.fn<() => Record<string, unknown>>(() => ({
     feature: "page_translation",
     surface: "floating_button",
     startedAt: 123,
   })),
-  sendMessageMock: vi.fn(),
+  sendMessageMock: vi.fn<(...args: any[]) => any>(),
 }))
 
 vi.mock("#imports", () => ({
@@ -67,7 +63,7 @@ vi.mock("@/utils/atoms/config", async () => {
   })
 
   const floatingButtonAtom = atom(
-    get => get(atomRefs.floatingButtonBaseAtom),
+    (get) => get(atomRefs.floatingButtonBaseAtom),
     (get, set, patch: Record<string, unknown>) => {
       const currentValue = get(atomRefs.floatingButtonBaseAtom) as Record<string, unknown>
 
@@ -79,7 +75,7 @@ vi.mock("@/utils/atoms/config", async () => {
   )
 
   atomRefs.sideContentBaseAtom = atom({ width: 320 })
-  const sideContentAtom = atom(get => get(atomRefs.sideContentBaseAtom))
+  const sideContentAtom = atom((get) => get(atomRefs.sideContentBaseAtom))
 
   return {
     configFieldsAtomMap: {
@@ -104,42 +100,32 @@ vi.mock("@/components/ui/base-ui/dropdown-menu", async () => {
   })
 
   return {
-    DropdownMenu: ({
-      open = false,
-      onOpenChange,
-      children,
-    }: any) => (
-      <MenuContext value={{ open, onOpenChange }}>
-        {children}
-      </MenuContext>
-    ),
-    DropdownMenuTrigger: ({
-      render,
-      children,
-    }: any) => {
+    DropdownMenu: ({ open = false, onOpenChange, children }: any) => {
+      const value = React.useMemo(() => ({ open, onOpenChange }), [open, onOpenChange])
+      return <MenuContext value={value}>{children}</MenuContext>
+    },
+    DropdownMenuTrigger: ({ render: triggerElement, children }: any) => {
       const { open, onOpenChange } = React.use(MenuContext)
 
-      return React.cloneElement(render, {
-        onClick: (event: any) => {
-          render.props.onClick?.(event)
-          onOpenChange?.(!open)
+      return React.cloneElement(
+        triggerElement,
+        {
+          onClick: (event: any) => {
+            triggerElement.props.onClick?.(event)
+            onOpenChange?.(!open)
+          },
+          onPointerDown: (event: any) => {
+            triggerElement.props.onPointerDown?.(event)
+          },
         },
-        onPointerDown: (event: any) => {
-          render.props.onPointerDown?.(event)
-        },
-      }, children)
+        children,
+      )
     },
-    DropdownMenuContent: ({
-      children,
-    }: any) => {
+    DropdownMenuContent: ({ children }: any) => {
       const { open } = React.use(MenuContext)
       return open ? <div>{children}</div> : null
     },
-    DropdownMenuItem: ({
-      children,
-      onClick,
-      onPointerDown,
-    }: any) => (
+    DropdownMenuItem: ({ children, onClick, onPointerDown }: any) => (
       <button type="button" onClick={onClick} onPointerDown={onPointerDown}>
         {children}
       </button>
@@ -157,15 +143,15 @@ function createDeferred<T>() {
 }
 
 function createMatchMedia(matches: boolean) {
-  return vi.fn().mockImplementation((query: string) => ({
+  return vi.fn<(...args: any[]) => any>().mockImplementation((query: string) => ({
     matches: query === "(pointer: coarse)" ? matches : false,
     media: query,
     onchange: null,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    dispatchEvent: vi.fn(),
+    addEventListener: vi.fn<(...args: any[]) => any>(),
+    removeEventListener: vi.fn<(...args: any[]) => any>(),
+    addListener: vi.fn<(...args: any[]) => any>(),
+    removeListener: vi.fn<(...args: any[]) => any>(),
+    dispatchEvent: vi.fn<(...args: any[]) => any>(),
   }))
 }
 
@@ -186,7 +172,7 @@ function renderFloatingButton(options?: {
   store.set(isDraggingButtonAtom, false)
   store.set(isSideOpenAtom, false)
 
-  render(
+  renderUi(
     <Provider store={store}>
       <FloatingButton />
     </Provider>,
@@ -243,11 +229,11 @@ describe("floating button interactions", () => {
     })
     Object.defineProperty(HTMLElement.prototype, "setPointerCapture", {
       configurable: true,
-      value: vi.fn(),
+      value: vi.fn<(...args: any[]) => any>(),
     })
     Object.defineProperty(HTMLElement.prototype, "releasePointerCapture", {
       configurable: true,
-      value: vi.fn(),
+      value: vi.fn<(...args: any[]) => any>(),
     })
 
     sendMessageMock.mockResolvedValue(undefined)
@@ -398,7 +384,9 @@ describe("floating button interactions", () => {
     })
 
     expect(
-      screen.queryByText("options.floatingButtonAndToolbar.floatingButton.closeMenu.disableForSite"),
+      screen.queryByText(
+        "options.floatingButtonAndToolbar.floatingButton.closeMenu.disableForSite",
+      ),
     ).not.toBeInTheDocument()
 
     await act(async () => {
@@ -456,17 +444,14 @@ describe("floating button interactions", () => {
     await tapMainBall(mainBall, { pointerId: 7, pointerType: "touch" })
 
     expect(sendMessageMock).toHaveBeenCalledTimes(1)
-    expect(sendMessageMock).toHaveBeenCalledWith(
-      "tryToSetEnablePageTranslationOnContentScript",
-      {
-        enabled: true,
-        analyticsContext: {
-          feature: "page_translation",
-          surface: "floating_button",
-          startedAt: 123,
-        },
+    expect(sendMessageMock).toHaveBeenCalledWith("tryToSetEnablePageTranslationOnContentScript", {
+      enabled: true,
+      analyticsContext: {
+        feature: "page_translation",
+        surface: "floating_button",
+        startedAt: 123,
       },
-    )
+    })
     expect(translateButton).toHaveClass("translate-x-0")
 
     await act(async () => {

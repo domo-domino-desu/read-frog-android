@@ -48,5 +48,15 @@
   ],
 
   // Vitest extension configuration
-  "vitest.rootConfig": "./vitest.config.ts"
+  "vitest.rootConfig": "./vitest.config.ts",
+  "files.exclude": {
+    "**/.git": true,
+    "**/.svn": true,
+    "**/.hg": true,
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true,
+    "**/CVS": true,
+    "**/*.olean": true
+  },
+  "hide-files.files": []
 }
