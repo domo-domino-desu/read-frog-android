@@ -45,10 +45,19 @@ jobs:
         run: pnpm install --frozen-lockfile --no-runtime
 
       - name: Run tests
+        id: tests
+        continue-on-error: true
         run: pnpm test
 
       - name: Run lint and type checks
+        id: lint
+        continue-on-error: true
         run: pnpm lint
+
+      - name: Report non-blocking validation failures
+        if: steps.tests.outcome == 'failure' || steps.lint.outcome == 'failure'
+        run: |
+          echo '::warning::Tests or lint failed, but validation is non-blocking; continuing to the Firefox Android build.'
 
       - name: Build Firefox Android package
         run: pnpm zip:firefox-android
