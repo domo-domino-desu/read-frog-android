@@ -1,0 +1,58 @@
+name: Nightly Build
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  HUSKY: 0
+  SKIP_FREE_API: true
+  WXT_SKIP_ENV_VALIDATION: true
+
+jobs:
+  package:
+    name: Package Firefox Android
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout commit
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Install dependencies
+        # setup-node already provides Node. Avoid pnpm's devEngines runtime
+        # download, which can shadow the provisioned runtime with an
+        # incompatible dynamically linked binary in containerized runners.
+        run: pnpm install --frozen-lockfile --no-runtime
+
+      - name: Package Firefox Android
+        run: pnpm zip:firefox-android
+
+      - name: Create timestamped nightly release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TIMESTAMP=$(date -u +%Y%m%d-%H%M%S)
+          DISPLAY_TIME=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          SHORT_SHA=${GITHUB_SHA::7}
+          NIGHTLY_TAG="nightly-${TIMESTAMP}-${SHORT_SHA}"
+
+          gh release create "$NIGHTLY_TAG" \
+            .output/*-firefox-android.zip \
+            .output/*-sources.zip \
+            --target "$GITHUB_SHA" \
+            --title "Nightly ${DISPLAY_TIME} (${SHORT_SHA})" \
+            --notes "Automated packages for commit $GITHUB_SHA from ref $GITHUB_REF_NAME." \
+            --prerelease \
+            --latest=false

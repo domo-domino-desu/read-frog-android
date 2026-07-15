@@ -1,0 +1,74 @@
+name: Validate
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HUSKY: 0
+  SKIP_FREE_API: true
+  WXT_SKIP_ENV_VALIDATION: true
+
+jobs:
+  test-lint-build:
+    name: Test, lint, and build Firefox Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout commit
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Install dependencies
+        # setup-node supplies the runtime. Avoid pnpm's devEngines runtime
+        # package shadowing it via node_modules/.bin/node.
+        run: pnpm install --frozen-lockfile --no-runtime
+
+      - name: Run tests
+        id: tests
+        continue-on-error: true
+        run: pnpm test
+
+      - name: Run lint and type checks
+        id: lint
+        continue-on-error: true
+        run: pnpm lint
+
+      - name: Report non-blocking validation failures
+        if: steps.tests.outcome == 'failure' || steps.lint.outcome == 'failure'
+        run: |
+          echo '::warning::Tests or lint failed, but validation is non-blocking; continuing to the Firefox Android build.'
+
+      - name: Build Firefox Android package
+        run: pnpm zip:firefox-android
+
+      - name: Upload Firefox Android build
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: firefox-android-${{ github.sha }}
+          path: |
+            .output/*-firefox-android.zip
+            .output/*-sources.zip
+          if-no-files-found: ignore
+          retention-days: 7

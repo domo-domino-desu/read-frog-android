@@ -1,0 +1,118 @@
+name: Sign Firefox Android
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing v* tag to build, sign, and attach the XPI to"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sign-firefox-android-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+env:
+  HUSKY: 0
+  SKIP_FREE_API: true
+  WXT_SKIP_ENV_VALIDATION: true
+
+jobs:
+  sign:
+    name: Sign self-distributed Firefox Android extension
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate release tag
+        id: release
+        env:
+          REQUESTED_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          if [[ ! "$REQUESTED_TAG" =~ ^v[0-9A-Za-z][0-9A-Za-z._-]*$ ]]; then
+            echo "Expected a v* release tag, got: $REQUESTED_TAG" >&2
+            exit 1
+          fi
+          echo "tag=$REQUESTED_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout release tag
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+
+      - name: Verify package version
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          PACKAGE_VERSION=$(jq -r '.version' package.json)
+          if [ "$RELEASE_TAG" != "v$PACKAGE_VERSION" ]; then
+            echo "Tag $RELEASE_TAG does not match package version $PACKAGE_VERSION" >&2
+            exit 1
+          fi
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Install dependencies
+        # setup-node already provides Node; do not install the devEngines
+        # runtime package into node_modules/.bin.
+        run: pnpm install --frozen-lockfile --no-runtime
+
+      - name: Package Firefox Android
+        run: pnpm zip:firefox-android
+
+      - name: Sign through Mozilla for self-distribution
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.MOZILLA_JWT_ISSUER }}
+          WEB_EXT_API_SECRET: ${{ secrets.MOZILLA_JWT_SECRET }}
+          WEB_EXT_APPROVAL_TIMEOUT: "3600000"
+          WEB_EXT_TIMEOUT: "600000"
+        run: |
+          if [ -z "$WEB_EXT_API_KEY" ] || [ -z "$WEB_EXT_API_SECRET" ]; then
+            echo "MOZILLA_JWT_ISSUER and MOZILLA_JWT_SECRET must be configured as Actions secrets." >&2
+            exit 1
+          fi
+
+          SOURCE_ZIP=$(find .output -maxdepth 1 -name '*-sources.zip' -print -quit)
+          if [ -z "$SOURCE_ZIP" ]; then
+            echo "Firefox source ZIP was not generated." >&2
+            exit 1
+          fi
+
+          mkdir -p .output/signed
+          pnpm dlx web-ext@10.3.0 sign \
+            --source-dir .output/firefox-mv3 \
+            --artifacts-dir .output/signed \
+            --channel unlisted \
+            --upload-source-code "$SOURCE_ZIP" \
+            --no-input
+
+      - name: Attach signed XPI to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          SIGNED_XPI=$(find .output/signed -maxdepth 1 -name '*.xpi' -print -quit)
+          if [ -z "$SIGNED_XPI" ]; then
+            echo "Mozilla did not return a signed XPI." >&2
+            exit 1
+          fi
+
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" \
+              --title "$RELEASE_TAG" \
+              --generate-notes \
+              --verify-tag
+          fi
+          gh release upload "$RELEASE_TAG" "$SIGNED_XPI" --clobber
