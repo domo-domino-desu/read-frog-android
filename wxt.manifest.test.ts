@@ -14,7 +14,7 @@ describe("createExtensionManifest", () => {
     expect(manifest.permissions).not.toContain("offscreen")
     expect(manifest.browser_specific_settings).toMatchObject({
       gecko: {
-        id: "{bd311a81-4530-4fcc-9178-74006155461b}",
+        id: "read-frog-android@domo-domino-desu.github.io",
       },
     })
     expect(manifest.browser_specific_settings).not.toHaveProperty("gecko_android")
@@ -29,18 +29,20 @@ describe("createExtensionManifest", () => {
 
     expect(manifest.permissions).not.toContain("contextMenus")
     expect(manifest.permissions).not.toContain("identity")
-    expect(manifest.permissions).toEqual(expect.arrayContaining([
-      "storage",
-      "tabs",
-      "alarms",
-      "cookies",
-      "scripting",
-      "webNavigation",
-    ]))
+    expect(manifest.permissions).toEqual(
+      expect.arrayContaining([
+        "storage",
+        "tabs",
+        "alarms",
+        "cookies",
+        "scripting",
+        "webNavigation",
+      ]),
+    )
     expect(manifest.permissions).not.toContain("offscreen")
     expect(manifest.browser_specific_settings).toMatchObject({
       gecko: {
-        id: "{bd311a81-4530-4fcc-9178-74006155461b}",
+        id: "read-frog-android@domo-domino-desu.github.io",
       },
       gecko_android: {},
     })

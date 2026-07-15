@@ -20,6 +20,7 @@ const {
   messageHandlers: new Map<string, (msg?: any) => any>(),
   managerInstances: [] as Array<{
     isActive: boolean
+    setEnabled: ReturnType<typeof vi.fn>
     start: ReturnType<typeof vi.fn>
     stop: ReturnType<typeof vi.fn>
     restart: ReturnType<typeof vi.fn>
@@ -80,6 +81,9 @@ vi.mock("../translation-control/node-translation", () => ({
 vi.mock("../translation-control/page-translation", () => ({
   PageTranslationManager: class {
     isActive = false
+    setEnabled = vi.fn<(...args: any[]) => any>(async (enabled: boolean) => {
+      this.isActive = enabled
+    })
     start = vi.fn<(...args: any[]) => any>(async () => {
       this.isActive = true
     })
@@ -168,7 +172,7 @@ describe("bootstrapHostContent URL changes", () => {
     )
     await flushAsyncWork()
 
-    expect(manager.start).toHaveBeenCalledTimes(1)
+    expect(manager.setEnabled).toHaveBeenCalledWith(true)
     expect(manager.restart).toHaveBeenCalledTimes(1)
     expect(manager.stop).not.toHaveBeenCalled()
     expect(mockSendMessage).toHaveBeenCalledWith("reportDetectedPageLanguage", {

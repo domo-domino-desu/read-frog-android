@@ -8,19 +8,19 @@ describe("google drive auth", () => {
   })
 
   it("does not read identity redirect URLs during module evaluation", async () => {
-    const getRedirectURL = vi.fn(() => "https://example.com")
+    const getRedirectURL = vi.fn<() => string>(() => "https://example.com")
 
     vi.doMock("#imports", () => ({
       browser: {
         identity: {
           getRedirectURL,
-          launchWebAuthFlow: vi.fn(),
+          launchWebAuthFlow: vi.fn<(...args: any[]) => any>(),
         },
       },
       storage: {
-        getItem: vi.fn(),
-        removeItem: vi.fn(),
-        setItem: vi.fn(),
+        getItem: vi.fn<(...args: any[]) => any>(),
+        removeItem: vi.fn<(...args: any[]) => any>(),
+        setItem: vi.fn<(...args: any[]) => any>(),
       },
     }))
 
@@ -35,21 +35,27 @@ describe("google drive auth", () => {
 
     const auth = await import("../auth")
 
-    for (const action of [
-      () => auth.authenticateGoogleDriveAndSaveTokenToStorage(),
-      () => auth.getValidAccessToken(),
-      () => auth.getIsAuthenticated(),
-    ]) {
-      try {
-        await action()
-        throw new Error("Expected Google Drive auth action to fail")
-      }
-      catch (error) {
-        expect(auth.isGoogleDrivePlatformUnsupportedError(error)).toBe(true)
-        expect(error).toMatchObject({
+    const results = await Promise.allSettled(
+      [
+        () => auth.authenticateGoogleDriveAndSaveTokenToStorage(),
+        () => auth.getValidAccessToken(),
+        () => auth.getIsAuthenticated(),
+      ].map((action) => action()),
+    )
+
+    expect(
+      results.every(
+        (result) =>
+          result.status === "rejected" && auth.isGoogleDrivePlatformUnsupportedError(result.reason),
+      ),
+    ).toBe(true)
+    expect(results).toEqual(
+      Array.from({ length: 3 }, () => ({
+        status: "rejected",
+        reason: expect.objectContaining({
           code: auth.GOOGLE_DRIVE_PLATFORM_UNSUPPORTED_ERROR_CODE,
-        })
-      }
-    }
+        }),
+      })),
+    )
   })
 })

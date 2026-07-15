@@ -7,16 +7,18 @@ function createMockConfig(mode: "bilingual" | "translationOnly"): Config {
   return { translate: { mode } } as Config
 }
 
-function createMockManager(isActive: boolean): PageTranslationManager {
-  return {
+function createMockManager(isActive: boolean) {
+  const setEnabled = vi.fn<(...args: any[]) => any>().mockResolvedValue(undefined)
+  const manager = {
     isActive,
-    setEnabled: vi.fn().mockResolvedValue(undefined),
+    setEnabled,
   } as unknown as PageTranslationManager
+  return { manager, setEnabled }
 }
 
 describe("handleTranslationModeChange", () => {
   it("should trigger re-translation when mode changes and manager is active", () => {
-    const manager = createMockManager(true)
+    const { manager, setEnabled } = createMockManager(true)
 
     handleTranslationModeChange(
       createMockConfig("translationOnly"),
@@ -24,12 +26,12 @@ describe("handleTranslationModeChange", () => {
       manager,
     )
 
-    expect(manager.setEnabled).toHaveBeenNthCalledWith(1, false)
-    expect(manager.setEnabled).toHaveBeenNthCalledWith(2, true)
+    expect(setEnabled).toHaveBeenNthCalledWith(1, false)
+    expect(setEnabled).toHaveBeenNthCalledWith(2, true)
   })
 
   it("should not trigger when mode stays the same", () => {
-    const manager = createMockManager(true)
+    const { manager, setEnabled } = createMockManager(true)
 
     handleTranslationModeChange(
       createMockConfig("bilingual"),
@@ -37,11 +39,11 @@ describe("handleTranslationModeChange", () => {
       manager,
     )
 
-    expect(manager.setEnabled).not.toHaveBeenCalled()
+    expect(setEnabled).not.toHaveBeenCalled()
   })
 
   it("should not trigger when manager is not active", () => {
-    const manager = createMockManager(false)
+    const { manager, setEnabled } = createMockManager(false)
 
     handleTranslationModeChange(
       createMockConfig("translationOnly"),
@@ -49,6 +51,6 @@ describe("handleTranslationModeChange", () => {
       manager,
     )
 
-    expect(manager.setEnabled).not.toHaveBeenCalled()
+    expect(setEnabled).not.toHaveBeenCalled()
   })
 })
