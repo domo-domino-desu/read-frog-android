@@ -21,6 +21,13 @@
 
 [官方网站](https://readfrog.app) · [教程](https://www.readfrog.app/zh/docs) · [更新日志][github-release-link] · [博客](https://www.readfrog.app/zh/blog)
 
+> [!NOTE]
+>
+> **Firefox Android 社区构建：**本仓库由
+> [domo-domino-desu/read-frog-android](https://github.com/domo-domino-desu/read-frog-android)
+> 维护，是针对 Android 适配的 Read Frog 分支。它使用独立的 Firefox 扩展 ID 和发布渠道，
+> 并非 Read Frog 上游项目的官方发行版；Android 相关问题请提交到本分支。
+
 <!-- SHIELD GROUP -->
 
 [![Release version badge][extension-release-shield]][github-release-link]

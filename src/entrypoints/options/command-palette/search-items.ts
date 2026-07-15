@@ -28,23 +28,27 @@ const TTS_SEARCH_ITEMS: SearchItemDefinition[] = [
 ]
 
 const GOOGLE_DRIVE_SEARCH_ITEMS: SearchItemDefinition[] = supportsGoogleDriveSync
-  ? [{
-      sectionId: "google-drive-sync",
-      route: "/config",
-      titleKey: "options.config.sync.googleDrive.title",
-      descriptionKey: "options.config.sync.googleDrive.description",
-      pageKey: "options.config.title",
-    }]
+  ? [
+      {
+        sectionId: "google-drive-sync",
+        route: "/config",
+        titleKey: "options.config.sync.googleDrive.title",
+        descriptionKey: "options.config.sync.googleDrive.description",
+        pageKey: "options.config.title",
+      },
+    ]
   : []
 
 const CONTEXT_MENU_SEARCH_ITEMS: SearchItemDefinition[] = supportsContextMenu
-  ? [{
-      sectionId: "context-menu-translate",
-      route: "/context-menu",
-      titleKey: "options.floatingButtonAndToolbar.contextMenu.translate.title",
-      descriptionKey: "options.floatingButtonAndToolbar.contextMenu.translate.description",
-      pageKey: "options.overlayTools.contextMenu.title",
-    }]
+  ? [
+      {
+        sectionId: "context-menu-translate",
+        route: "/context-menu",
+        titleKey: "options.floatingButtonAndToolbar.contextMenu.translate.title",
+        descriptionKey: "options.floatingButtonAndToolbar.contextMenu.translate.description",
+        pageKey: "options.overlayTools.contextMenu.title",
+      },
+    ]
   : []
 
 const CONFIG_SEARCH_ITEMS = [

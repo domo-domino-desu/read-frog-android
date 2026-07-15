@@ -37,18 +37,16 @@ import { setupTTSPlaybackMessageHandlers } from "./tts-playback"
 import { setupUninstallSurvey } from "./uninstall-survey"
 
 interface OptionalContextMenuDependencies {
-  initializeContextMenu: () => Promise<void>
   registerContextMenuListeners: () => void
   supportsContextMenu: boolean
 }
 
 export function setupOptionalContextMenu({
-  initializeContextMenu,
-  registerContextMenuListeners,
-  supportsContextMenu,
+  registerContextMenuListeners: registerListeners,
+  supportsContextMenu: contextMenuSupported,
 }: OptionalContextMenuDependencies) {
-  if (!supportsContextMenu) return
-  registerContextMenuListeners()
+  if (!contextMenuSupported) return
+  registerListeners()
 }
 
 export default defineBackground({
@@ -120,7 +118,6 @@ export default defineBackground({
     // Register context menu listeners synchronously
     // This ensures listeners are registered before Chrome completes initialization
     setupOptionalContextMenu({
-      initializeContextMenu,
       registerContextMenuListeners,
       supportsContextMenu,
     })

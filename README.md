@@ -21,6 +21,14 @@ Master languages effortlessly and deeply with AI, right in your browser.
 
 [Official Website](https://readfrog.app) · [Tutorial](https://www.readfrog.app/docs) · [Changelog][github-release-link] · [Blog](https://www.readfrog.app/blog)
 
+> [!NOTE]
+>
+> **Firefox Android community build:** this repository is maintained at
+> [domo-domino-desu/read-frog-android](https://github.com/domo-domino-desu/read-frog-android)
+> as an Android-focused adaptation of Read Frog. It uses its own Firefox add-on ID and release
+> channel and is not an official distribution of the upstream Read Frog project. Please report
+> Android-specific issues to this fork.
+
 <!-- SHIELD GROUP -->
 
 [![Latest Version badge][extension-release-shield]][github-release-link]

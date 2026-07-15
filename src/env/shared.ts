@@ -49,8 +49,12 @@ const strictCookieDomainSchema = strictStringSchema
     message: "must not include a path or port",
   })
 
-const optionalNonEmptyStringSchema = z.string().min(1).optional()
-const optionalStrictUrlSchema = strictUrlSchema.optional()
+function optionalWithoutEmptyString<T extends z.ZodType>(schema: T) {
+  return z.preprocess((value) => (value === "" ? undefined : value), schema.optional())
+}
+
+const optionalNonEmptyStringSchema = optionalWithoutEmptyString(z.string().min(1))
+const optionalStrictUrlSchema = optionalWithoutEmptyString(strictUrlSchema)
 
 function parseCommaSeparatedEntries(
   value: string,

@@ -38,10 +38,12 @@ export default defineConfig({
     createExtensionManifest({
       mode,
       browser,
-      isFirefoxAndroidBuild:
-        browser === "firefox" && isFirefoxAndroidBuildTargetEnabled(),
+      isFirefoxAndroidBuild: browser === "firefox" && isFirefoxAndroidBuildTargetEnabled(),
     }),
   zip: {
+    artifactTemplate: isFirefoxAndroidBuildTargetEnabled()
+      ? "{{name}}-{{version}}-firefox-android.zip"
+      : "{{name}}-{{version}}-{{browser}}.zip",
     includeSources: [".env.production"],
     excludeSources: ["docs/**/*", "assets/**/*", "repos/**/*", "readmes/**/*"],
   },
