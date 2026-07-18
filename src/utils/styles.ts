@@ -1,26 +1,3 @@
-import sonnerCSS from "sonner/dist/styles.css?inline"
-
-const SONNER_SHADOW_STYLE_ATTRIBUTE = "data-read-frog-sonner-styles"
-
-export function addStyleToShadow(shadow: ShadowRoot) {
-  if (shadow.querySelector(`style[${SONNER_SHADOW_STYLE_ATTRIBUTE}]`)) return
-
-  // Sonner injects its stylesheet into the page's document head. Copying any
-  // page style that merely mentions Sonner can pull an entire host-site bundle
-  // into the ShadowRoot, including global `html` and `body` rules. Inject the
-  // package's own stylesheet instead so host-page CSS cannot leak in.
-  const style = document.createElement("style")
-  style.setAttribute(SONNER_SHADOW_STYLE_ATTRIBUTE, "")
-  style.textContent = sonnerCSS
-
-  const shadowHead = shadow.querySelector("head")
-  if (shadowHead) {
-    shadowHead.append(style)
-  } else {
-    shadow.append(style)
-  }
-}
-
 function isInternalStyleElement(node: Node) {
   if (!node) return false
 
@@ -32,10 +9,6 @@ function isInternalStyleElement(node: Node) {
   }
 
   if (node instanceof HTMLStyleElement && node.id === "_goober") {
-    return true
-  }
-
-  if (node instanceof HTMLStyleElement && node.textContent?.includes("[data-sonner-toaster]")) {
     return true
   }
 
