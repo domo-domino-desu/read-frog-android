@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   downloadSubtitlesAsSrt: vi.fn<(...args: any[]) => any>(),
   fetchSubtitlesSummary: vi.fn<(...args: any[]) => any>(),
   getLocalConfig: vi.fn<(...args: any[]) => any>(),
+  resolveSubtitlesProviderRef: vi.fn<(...args: any[]) => any>(),
   toastAdd: vi.fn<(...args: any[]) => any>(),
   translateSubtitles: vi.fn<(...args: any[]) => any>(),
 }))
@@ -28,6 +29,7 @@ vi.mock("@/utils/subtitles/processor/ai-segmentation", () => ({
 }))
 vi.mock("@/utils/subtitles/processor/translator", () => ({
   buildSubtitlesSummaryContextHash: () => "summary-hash",
+  resolveSubtitlesProviderRef: mocks.resolveSubtitlesProviderRef,
   fetchSubtitlesSummary: mocks.fetchSubtitlesSummary,
   translateSubtitles: mocks.translateSubtitles,
 }))
@@ -59,7 +61,7 @@ function createDownloader(fragments: SubtitlesFragment[], preSegmented = true) {
     isPreSegmented: () => preSegmented,
   }
   return {
-    downloader: new TranslatedSubtitlesDownloader(fetcher, {
+    downloader: new TranslatedSubtitlesDownloader(() => fetcher, {
       selectors: {
         video: "video",
         playerContainer: ".player",
@@ -99,6 +101,12 @@ describe("translatedSubtitlesDownloader", () => {
       progress: null,
     })
     mocks.getLocalConfig.mockResolvedValue(createConfig())
+    // The export resolves one ref up front and threads it into segmentation;
+    // a null here would skip the AI path entirely.
+    mocks.resolveSubtitlesProviderRef.mockResolvedValue({
+      kind: "local",
+      config: DEFAULT_PROVIDER_CONFIG.openai,
+    })
     mocks.fetchSubtitlesSummary.mockResolvedValue(null)
     mocks.translateSubtitles.mockImplementation(async (fragments: SubtitlesFragment[]) =>
       translated(fragments),
@@ -186,11 +194,11 @@ describe("translatedSubtitlesDownloader", () => {
       expect.any(Object),
     )
 
-    resolvers[1](translated(fragments.slice(5, 10)))
+    resolvers[1]!(translated(fragments.slice(5, 10)))
     await vi.waitFor(() => expect(activeBatches).toBe(1))
     expect(mocks.translateSubtitles).toHaveBeenCalledTimes(2)
 
-    resolvers[0](translated(fragments.slice(0, 5)))
+    resolvers[0]!(translated(fragments.slice(0, 5)))
     await vi.waitFor(() => expect(mocks.translateSubtitles).toHaveBeenCalledTimes(3))
     expect(mocks.translateSubtitles).toHaveBeenNthCalledWith(
       3,
@@ -199,7 +207,7 @@ describe("translatedSubtitlesDownloader", () => {
       expect.any(Object),
     )
 
-    resolvers[2](translated(fragments.slice(10)))
+    resolvers[2]!(translated(fragments.slice(10)))
     await download
 
     expect(mocks.downloadSubtitlesAsSrt).toHaveBeenCalledWith(
@@ -320,8 +328,8 @@ describe("translatedSubtitlesDownloader", () => {
     const newDownload = downloader.download()
     await vi.waitFor(() => expect(mocks.translateSubtitles).toHaveBeenCalledTimes(4))
     await newDownload
-    finishOldTranslations[0](translated(fragments.slice(0, 5)))
-    finishOldTranslations[1](translated(fragments.slice(5)))
+    finishOldTranslations[0]!(translated(fragments.slice(0, 5)))
+    finishOldTranslations[1]!(translated(fragments.slice(5)))
     await oldDownload
 
     expect(fetcher.fetch).toHaveBeenCalledTimes(2)

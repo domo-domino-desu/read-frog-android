@@ -3,7 +3,7 @@ import { Icon } from "@iconify/react"
 import { useSelector } from "@tanstack/react-store"
 import { useState } from "react"
 import { Button } from "@/components/ui/base-ui/button"
-import { Field, FieldLabel } from "@/components/ui/base-ui/field"
+import { Field, FieldTitle } from "@/components/ui/base-ui/field"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/base-ui/input-group"
 import {
   Popover,
@@ -24,6 +24,7 @@ interface IconPickerPopoverProps {
   previewIcon: string
   selectedIcon: string | undefined
   onSelect: (icon: string) => void
+  disabled?: boolean
 }
 
 function IconPickerPopover({
@@ -32,17 +33,24 @@ function IconPickerPopover({
   previewIcon,
   selectedIcon,
   onSelect,
+  disabled,
 }: IconPickerPopoverProps) {
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
+    <Popover
+      open={!disabled && open}
+      onOpenChange={(nextOpen) => {
+        if (!disabled) onOpenChange(nextOpen)
+      }}
+    >
       <PopoverTrigger
         render={
           <Button
             type="button"
             variant="outline"
             size="icon"
+            disabled={disabled}
             aria-label={i18n.t(
-              "options.floatingButtonAndToolbar.selectionToolbar.customActions.form.iconField.chooseAriaLabel",
+              "options.selectionToolbar.customActions.form.iconField.chooseAriaLabel",
             )}
           />
         }
@@ -53,9 +61,7 @@ function IconPickerPopover({
       <PopoverContent align="start">
         <PopoverHeader>
           <PopoverTitle>
-            {i18n.t(
-              "options.floatingButtonAndToolbar.selectionToolbar.customActions.form.iconField.chooseTitle",
-            )}
+            {i18n.t("options.selectionToolbar.customActions.form.iconField.chooseTitle")}
           </PopoverTitle>
         </PopoverHeader>
         <div className="grid grid-cols-6 gap-1">
@@ -88,7 +94,7 @@ function IconHelpPopover() {
             variant="ghost"
             size="icon-xs"
             aria-label={i18n.t(
-              "options.floatingButtonAndToolbar.selectionToolbar.customActions.form.iconField.helpAriaLabel",
+              "options.selectionToolbar.customActions.form.iconField.helpAriaLabel",
             )}
           />
         }
@@ -98,17 +104,13 @@ function IconHelpPopover() {
       <PopoverContent align="end" sideOffset={10}>
         <PopoverHeader>
           <PopoverTitle>
-            {i18n.t(
-              "options.floatingButtonAndToolbar.selectionToolbar.customActions.form.iconField.helpTitle",
-            )}
+            {i18n.t("options.selectionToolbar.customActions.form.iconField.helpTitle")}
           </PopoverTitle>
         </PopoverHeader>
         <ol className="flex flex-col gap-1">
           <li>
             <span className="font-medium">1.</span>{" "}
-            {i18n.t(
-              "options.floatingButtonAndToolbar.selectionToolbar.customActions.form.iconField.helpStepBrowsePrefix",
-            )}
+            {i18n.t("options.selectionToolbar.customActions.form.iconField.helpStepBrowsePrefix")}
             <a
               href="https://icon-sets.iconify.design/"
               target="_blank"
@@ -118,19 +120,13 @@ function IconHelpPopover() {
               Iconify
               <Icon icon="tabler:external-link" className="size-3.5" />
             </a>
-            {i18n.t(
-              "options.floatingButtonAndToolbar.selectionToolbar.customActions.form.iconField.helpStepBrowseSuffix",
-            )}
+            {i18n.t("options.selectionToolbar.customActions.form.iconField.helpStepBrowseSuffix")}
           </li>
           <li>
             <span className="font-medium">2.</span>{" "}
-            {i18n.t(
-              "options.floatingButtonAndToolbar.selectionToolbar.customActions.form.iconField.helpStepCopyPrefix",
-            )}
+            {i18n.t("options.selectionToolbar.customActions.form.iconField.helpStepCopyPrefix")}
             <code className="rounded-sm bg-muted px-1 py-0.5 text-[13px]">tabler:book-2</code>
-            {i18n.t(
-              "options.floatingButtonAndToolbar.selectionToolbar.customActions.form.iconField.helpStepCopySuffix",
-            )}
+            {i18n.t("options.selectionToolbar.customActions.form.iconField.helpStepCopySuffix")}
           </li>
         </ol>
       </PopoverContent>
@@ -140,7 +136,10 @@ function IconHelpPopover() {
 
 export const IconField = withForm({
   ...{ defaultValues: {} as SelectionToolbarCustomAction },
-  render: function Render({ form }) {
+  props: {
+    readOnly: false as boolean,
+  },
+  render: function Render({ form, readOnly }) {
     const iconValue = useSelector(form.store, (state) => state.values.icon)
     const [iconPickerOpen, setIconPickerOpen] = useState(false)
     const hasError = !ICON_PATTERN.test(iconValue?.trim() ?? "")
@@ -152,9 +151,7 @@ export const IconField = withForm({
         validators={{
           onChange: ({ value }) => {
             if (!ICON_PATTERN.test(value.trim())) {
-              return i18n.t(
-                "options.floatingButtonAndToolbar.selectionToolbar.customActions.errors.invalidIcon",
-              )
+              return i18n.t("options.selectionToolbar.customActions.errors.invalidIcon")
             }
             return undefined
           },
@@ -162,15 +159,14 @@ export const IconField = withForm({
       >
         {(field) => (
           <Field>
-            <FieldLabel nativeLabel={false} render={<div />}>
-              {i18n.t("options.floatingButtonAndToolbar.selectionToolbar.customActions.form.icon")}
-            </FieldLabel>
+            <FieldTitle>{i18n.t("options.selectionToolbar.customActions.form.icon")}</FieldTitle>
             <div className="flex items-center gap-2">
               <IconPickerPopover
                 open={iconPickerOpen}
                 onOpenChange={setIconPickerOpen}
                 previewIcon={previewIcon}
                 selectedIcon={field.state.value}
+                disabled={readOnly}
                 onSelect={(icon) => {
                   field.handleChange(icon)
                   void form.handleSubmit()
@@ -182,9 +178,10 @@ export const IconField = withForm({
                 <InputGroupInput
                   value={field.state.value ?? ""}
                   placeholder={i18n.t(
-                    "options.floatingButtonAndToolbar.selectionToolbar.customActions.form.iconField.inputPlaceholder",
+                    "options.selectionToolbar.customActions.form.iconField.inputPlaceholder",
                   )}
                   aria-invalid={hasError}
+                  readOnly={readOnly}
                   onBlur={field.handleBlur}
                   onChange={(e) => {
                     field.handleChange(e.target.value)

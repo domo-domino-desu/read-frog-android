@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import type { Config } from "@/types/config/config"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { render, screen } from "@testing-library/react"
 import { createStore, Provider } from "jotai"
 import { describe, expect, it, vi } from "vitest"
@@ -33,18 +34,43 @@ function makeAction(
 
 function renderWithConfig(config: Config) {
   const store = createStore()
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   store.set(configAtom, config)
   render(
-    <Provider store={store}>
-      <FeatureProviderSelectorList />
-    </Provider>,
+    <QueryClientProvider client={queryClient}>
+      <Provider store={store}>
+        <FeatureProviderSelectorList />
+      </Provider>
+    </QueryClientProvider>,
   )
 }
+
+describe("featureProviderSelectorList feature rows", () => {
+  it("renders one provider row per feature key, including note suggestion", () => {
+    renderWithConfig(cloneConfig(DEFAULT_CONFIG))
+
+    // The test i18n facade resolves keys to themselves, so the row labels are
+    // the raw feature label keys.
+    for (const featureKey of [
+      "pageTranslation",
+      "videoSubtitles",
+      "selectionTranslation",
+      "inputTranslation",
+      "noteSuggestion",
+    ]) {
+      expect(
+        screen.getByText(`options.apiProviders.featureProviders.features.${featureKey}`),
+      ).toBeInTheDocument()
+    }
+  })
+})
 
 describe("featureProviderSelectorList custom action filtering", () => {
   it("only renders provider rows for enabled custom actions", () => {
     const config = cloneConfig(DEFAULT_CONFIG)
-    const providerId = config.providersConfig[0].id
+    const providerId = config.providersConfig[0]!.id
 
     config.selectionToolbar.customActions = [
       makeAction({ id: "enabled-action", name: "Enabled Action", providerId, enabled: true }),
@@ -59,7 +85,7 @@ describe("featureProviderSelectorList custom action filtering", () => {
 
   it("treats actions without an explicit enabled flag as enabled", () => {
     const config = cloneConfig(DEFAULT_CONFIG)
-    const providerId = config.providersConfig[0].id
+    const providerId = config.providersConfig[0]!.id
 
     config.selectionToolbar.customActions = [
       makeAction({ id: "implicit-action", name: "Implicit Action", providerId }),
@@ -72,17 +98,18 @@ describe("featureProviderSelectorList custom action filtering", () => {
 
   it("hides the custom actions section when every action is disabled", () => {
     const config = cloneConfig(DEFAULT_CONFIG)
-    const providerId = config.providersConfig[0].id
+    const providerId = config.providersConfig[0]!.id
 
     config.selectionToolbar.customActions = [
       makeAction({ id: "disabled-action", name: "Disabled Action", providerId, enabled: false }),
     ]
+    config.selectionToolbar.builtInActions.dictionary.enabled = false
 
     renderWithConfig(config)
 
     expect(screen.queryByText("Disabled Action")).not.toBeInTheDocument()
     expect(
-      screen.queryByText("options.general.featureProviders.customActions"),
+      screen.queryByText("options.selectionToolbar.customActions.title"),
     ).not.toBeInTheDocument()
   })
 })

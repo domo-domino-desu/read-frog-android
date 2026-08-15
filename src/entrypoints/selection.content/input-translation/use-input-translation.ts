@@ -1,15 +1,21 @@
-import { useAtom } from "jotai"
+import { useAtomValue } from "jotai"
 import { useCallback, useEffect, useRef } from "react"
+import { toastManager } from "@/components/ui/base-ui/toast"
 import { ANALYTICS_FEATURE, ANALYTICS_SURFACE } from "@/types/analytics"
 import { createFeatureUsageContext, trackFeatureAttempt } from "@/utils/analytics"
+import { classifyResolvedProvider } from "@/utils/analytics-provider"
 import { configFieldsAtomMap } from "@/utils/atoms/config"
 import { INPUT_REPLACE_REQUEST_TYPE } from "@/utils/constants/input-injector"
 import { translateTextForInput } from "@/utils/host/translate/translate-variants"
+import { HostedAiProviderUnavailableError } from "@/utils/providers/provider-ref"
+import { resolveProviderRefForCapability } from "@/utils/providers/provider-registry"
 
 const SPACE_KEY = " "
 const TRIGGER_COUNT = 3
 const LAST_CYCLE_SWAPPED_KEY = "read-frog-input-translation-last-cycle-swapped"
 const SPINNER_ID = "read-frog-input-translation-spinner"
+/** Hammering the hotkey must stack one toast, not one per attempt. */
+const HOSTED_UNAVAILABLE_TOAST_ID = "input-translation-hosted-unavailable"
 
 function getLastCycleSwapped(): boolean {
   try {
@@ -120,7 +126,8 @@ function setTextWithUndo(
 }
 
 export function useInputTranslation() {
-  const [inputTranslationConfig] = useAtom(configFieldsAtomMap.inputTranslation)
+  const inputTranslationConfig = useAtomValue(configFieldsAtomMap.inputTranslation)
+  const providersConfig = useAtomValue(configFieldsAtomMap.providersConfig)
   const spaceTimestampsRef = useRef<number[]>([])
   const isTranslatingRef = useRef(false)
 
@@ -183,10 +190,21 @@ export function useInputTranslation() {
 
       try {
         const translatedText = await trackFeatureAttempt(
-          createFeatureUsageContext(
-            ANALYTICS_FEATURE.INPUT_TRANSLATION,
-            ANALYTICS_SURFACE.INPUT_TRANSLATION,
-          ),
+          {
+            ...createFeatureUsageContext(
+              ANALYTICS_FEATURE.INPUT_TRANSLATION,
+              ANALYTICS_SURFACE.INPUT_TRANSLATION,
+            ),
+            // Capability-resolved so Built-in AI is not reported as "unknown":
+            // it is synthesized by the registry and never a providersConfig row.
+            ...classifyResolvedProvider(
+              resolveProviderRefForCapability(
+                "inputTranslation",
+                providersConfig,
+                inputTranslationConfig.providerId,
+              ),
+            ),
+          },
           () => translateTextForInput(text, fromLang, toLang),
         )
 
@@ -205,6 +223,16 @@ export function useInputTranslation() {
           setTextWithUndo(element, translatedText)
         }
       } catch (error) {
+        // A hosted plan/quota denial is a state the user can act on, not a
+        // defect: without this the spinner just appears and disappears and
+        // the feature reads as broken.
+        if (error instanceof HostedAiProviderUnavailableError) {
+          toastManager.add({
+            type: "error",
+            title: error.message,
+            id: HOSTED_UNAVAILABLE_TOAST_ID,
+          })
+        }
         console.error("Input translation error:", error)
       } finally {
         hideSpinner()
@@ -215,6 +243,8 @@ export function useInputTranslation() {
       inputTranslationConfig.fromLang,
       inputTranslationConfig.toLang,
       inputTranslationConfig.enableCycle,
+      inputTranslationConfig.providerId,
+      providersConfig,
     ],
   )
 
@@ -246,7 +276,7 @@ export function useInputTranslation() {
 
       // Remove timestamps older than threshold
       const timeThreshold = inputTranslationConfig.timeThreshold
-      while (timestamps.length > 0 && now - timestamps[0] > timeThreshold * (TRIGGER_COUNT - 1)) {
+      while (timestamps.length > 0 && now - timestamps[0]! > timeThreshold * (TRIGGER_COUNT - 1)) {
         timestamps.shift()
       }
 
@@ -258,7 +288,7 @@ export function useInputTranslation() {
         // Check if all presses are within the time threshold
         const allWithinThreshold = timestamps.every((ts, i) => {
           if (i === 0) return true
-          return ts - timestamps[i - 1] <= timeThreshold
+          return ts - timestamps[i - 1]! <= timeThreshold
         })
 
         if (allWithinThreshold) {

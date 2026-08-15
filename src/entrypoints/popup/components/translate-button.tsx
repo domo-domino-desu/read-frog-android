@@ -17,7 +17,7 @@ import { isCurrentSiteInBlacklistAtom, isCurrentSiteInWhitelistAtom } from "../a
 export default function TranslateButton({ className }: { className?: string }) {
   const [isPageTranslated, setIsPageTranslated] = useAtom(isPageTranslatedAtom)
   const isIgnoreTab = useAtomValue(isIgnoreTabAtom)
-  const translateConfig = useAtomValue(configFieldsAtomMap.translate)
+  const translateConfig = useAtomValue(configFieldsAtomMap.pageTranslation)
   const { mode } = useAtomValue(configFieldsAtomMap.siteControl)
   const isCurrentSiteInWhitelist = useAtomValue(isCurrentSiteInWhitelistAtom)
   const isCurrentSiteInBlacklist = useAtomValue(isCurrentSiteInBlacklistAtom)
@@ -28,10 +28,10 @@ export default function TranslateButton({ className }: { className?: string }) {
       currentWindow: true,
     })
 
-    if (currentTab.id) {
+    if (currentTab!.id) {
       const nextEnabled = !isPageTranslated
       void sendMessage("tryToSetEnablePageTranslationByTabId", {
-        tabId: currentTab.id,
+        tabId: currentTab!.id,
         enabled: nextEnabled,
         analyticsContext: nextEnabled
           ? createFeatureUsageContext(ANALYTICS_FEATURE.PAGE_TRANSLATION, ANALYTICS_SURFACE.POPUP)

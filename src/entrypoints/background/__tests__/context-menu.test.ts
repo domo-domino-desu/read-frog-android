@@ -5,6 +5,7 @@ import { i18n } from "@/utils/i18n"
 
 const sendMessageMock = vi.fn<(...args: any[]) => any>()
 const ensureInitializedConfigMock = vi.fn<(...args: any[]) => any>()
+const storageSetItemMock = vi.fn<(...args: any[]) => any>()
 const contextMenuClickListeners: Array<(info: any, tab?: any) => Promise<void> | void> = []
 
 vi.mock("@/utils/message", () => ({
@@ -21,6 +22,12 @@ function createConfig(enabled: boolean): Config {
       enabled,
     },
     selectionToolbar: {
+      builtInActions: {
+        dictionary: {
+          enabled: false,
+          providerId: "read-frog-free-ai",
+        },
+      },
       customActions: [],
     },
   } as unknown as Config
@@ -45,7 +52,8 @@ describe("background context menu", () => {
 
     storage.watch = vi.fn<(...args: any[]) => any>()
     storage.getItem = vi.fn<(...args: any[]) => any>().mockResolvedValue({ enabled: true })
-    storage.setItem = vi.fn<(...args: any[]) => any>().mockResolvedValue(undefined)
+    storage.setItem = storageSetItemMock
+    storageSetItemMock.mockResolvedValue(undefined)
 
     i18n.t = vi.fn<(...args: any[]) => any>(
       (key: string) =>
@@ -54,6 +62,7 @@ describe("background context menu", () => {
           "contextMenu.translateSelection": 'Translate "%s"',
           "contextMenu.readAloudSelection": 'Read aloud "%s"',
           "contextMenu.showOriginal": "Show Original",
+          "options.selectionToolbar.customActions.templates.dictionary.name": "Dictionary",
         })[key] ?? key,
     ) as typeof i18n.t
   })
@@ -117,6 +126,23 @@ describe("background context menu", () => {
     })
   })
 
+  it("creates the built-in Dictionary item when it is enabled", async () => {
+    const config = createConfig(true)
+    config.selectionToolbar.builtInActions.dictionary.enabled = true
+    ensureInitializedConfigMock.mockResolvedValue(config)
+
+    const { initializeContextMenu, MENU_ID_SELECTION_CUSTOM_ACTION_PREFIX } =
+      await import("../context-menu")
+
+    await initializeContextMenu()
+
+    expect(browser.contextMenus.create).toHaveBeenNthCalledWith(4, {
+      id: `${MENU_ID_SELECTION_CUSTOM_ACTION_PREFIX}default-dictionary`,
+      title: "Dictionary",
+      contexts: ["selection"],
+    })
+  })
+
   it("removes menu items without recreating them when the context menu is disabled", async () => {
     ensureInitializedConfigMock.mockResolvedValue(createConfig(false))
 
@@ -127,6 +153,29 @@ describe("background context menu", () => {
     expect(browser.contextMenus.removeAll).toHaveBeenCalledOnce()
     expect(browser.contextMenus.create).not.toHaveBeenCalled()
     expect(browser.contextMenus.update).not.toHaveBeenCalled()
+  })
+
+  it("records a scoped user refusal when the translate menu disables translation", async () => {
+    const { MENU_ID_TRANSLATE, registerContextMenuListeners } = await import("../context-menu")
+
+    registerContextMenuListeners()
+
+    const clickHandler = contextMenuClickListeners[0]
+    if (!clickHandler) {
+      throw new Error("Context menu click listener was not registered")
+    }
+
+    // storage.getItem defaults to { enabled: true }, so this click toggles off.
+    await clickHandler(
+      { menuItemId: MENU_ID_TRANSLATE },
+      { id: 5, url: "https://example.com/articles/1" },
+    )
+
+    expect(storageSetItemMock).toHaveBeenCalledWith("session:translationState.5", {
+      enabled: false,
+      userDisabled: true,
+      origin: "https://example.com",
+    })
   })
 
   it("routes selection menu clicks to the matching tab and frame", async () => {

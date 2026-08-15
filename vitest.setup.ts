@@ -88,39 +88,54 @@ vi.mock("@iconify/react", async () => {
 
 // Mock the fakeBrowser's i18n.getMessage method which is not implemented in fake-browser
 // This is used when WxtVitest plugin replaces browser imports with fake-browser
-vi.mock("wxt/testing", async () => {
-  const actual = await vi.importActual<any>("wxt/testing")
-  return {
-    ...actual,
-    fakeBrowser: {
-      ...actual.fakeBrowser,
-      i18n: {
-        ...actual.fakeBrowser.i18n,
-        getMessage: (key: string) => key.replaceAll("_", "."),
-      },
-      identity: {
-        ...actual.fakeBrowser.identity,
-        getRedirectURL: () => "https://mock-redirect-url.chromiumapp.org/",
-      },
-      runtime: {
-        ...actual.fakeBrowser.runtime,
-        getManifest: () => ({
-          manifest_version: 3,
-          name: "Read Frog",
-          version: "1.0.0",
-          description: "Test manifest",
-        }),
-      },
-    },
-  }
+vi.mock("wxt/testing/fake-browser", async () => {
+  const actual = await vi.importActual<any>("wxt/testing/fake-browser")
+
+  Object.assign(actual.fakeBrowser.i18n, {
+    getMessage: (key: string) => key.replaceAll("_", "."),
+  })
+  Object.assign(actual.fakeBrowser.identity, {
+    getRedirectURL: () => "https://mock-redirect-url.chromiumapp.org/",
+  })
+  Object.assign(actual.fakeBrowser.runtime, {
+    getManifest: () => ({
+      manifest_version: 3,
+      name: "Read Frog",
+      version: "1.0.0",
+      description: "Test manifest",
+    }),
+  })
+
+  return actual
 })
+
+// jsdom implements no layout, so it omits Range.getBoundingClientRect entirely
+// (Element.getBoundingClientRect it does stub, returning zeros). Every browser
+// ships it. Match jsdom's own convention with a zero rect so layout probes
+// short-circuit instead of throwing; tests that exercise them spy on this.
+// (Guarded: this setup file also runs for node-environment test files.)
+if (typeof Range !== "undefined" && typeof Range.prototype.getBoundingClientRect !== "function") {
+  Range.prototype.getBoundingClientRect = function () {
+    return {
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      width: 0,
+      height: 0,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }
+  }
+}
 
 // JSDom + Vitest don't play well with each other. Long story short - default
 // TextEncoder produces Uint8Array objects that are _different_ from the global
 // Uint8Array objects, so some functions that compare their types explode.
 // https://github.com/vitest-dev/vitest/issues/4043#issuecomment-1905172846
 class ESBuildAndJSDOMCompatibleTextEncoder extends TextEncoder {
-  encode(input: string) {
+  override encode(input: string) {
     if (typeof input !== "string") {
       throw new TypeError("`input` must be a string")
     }
@@ -129,7 +144,7 @@ class ESBuildAndJSDOMCompatibleTextEncoder extends TextEncoder {
     const arr = new Uint8Array(decodedURI.length)
     const chars = decodedURI.split("")
     for (let i = 0; i < chars.length; i++) {
-      arr[i] = decodedURI[i].charCodeAt(0)
+      arr[i] = decodedURI[i]!.charCodeAt(0)
     }
     return arr
   }

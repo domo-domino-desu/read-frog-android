@@ -265,6 +265,42 @@ describe("pageTranslationManager mutation re-walk", () => {
     mockSendMessage.mockResolvedValue(undefined)
   })
 
+  it("observes pre-existing reader content mounted beside the body", async () => {
+    const readerRoot = document.createElement("sr-read")
+    readerRoot.innerHTML = `
+      <sr-rd-content>
+        <p id="reader-paragraph">Reader mode content</p>
+      </sr-rd-content>
+    `
+    document.documentElement.append(readerRoot)
+
+    const manager = new PageTranslationManager()
+    try {
+      await manager.start()
+      await flushDomUpdates()
+
+      const observer = intersectionObservers[0]
+      const readerParagraph = document.getElementById("reader-paragraph") as HTMLElement
+
+      expect(observer!.observe).toHaveBeenCalledWith(readerParagraph)
+
+      await observer!.triggerIntersect(readerParagraph)
+      await flushDomUpdates()
+
+      expect(mockTranslateWalkedElement).toHaveBeenCalledWith(
+        readerParagraph,
+        "walk-id",
+        DEFAULT_CONFIG,
+        false,
+        expect.anything(),
+        expect.anything(),
+      )
+    } finally {
+      if (manager.isActive) manager.stop()
+      readerRoot.remove()
+    }
+  })
+
   it("observes and translates hidden accordion content after it becomes visible", async () => {
     document.body.innerHTML = `
       <section id="accordion" hidden>
@@ -280,14 +316,14 @@ describe("pageTranslationManager mutation re-walk", () => {
     const accordion = document.getElementById("accordion") as HTMLElement
     const panel = document.getElementById("panel") as HTMLElement
 
-    expect(observer.observe).not.toHaveBeenCalled()
+    expect(observer!.observe).not.toHaveBeenCalled()
 
     accordion.removeAttribute("hidden")
     await flushDomUpdates()
 
-    expect(observer.observe).toHaveBeenCalledWith(panel)
+    expect(observer!.observe).toHaveBeenCalledWith(panel)
 
-    await observer.triggerIntersect(panel)
+    await observer!.triggerIntersect(panel)
     await flushDomUpdates()
 
     expect(mockTranslateWalkedElement).toHaveBeenCalledWith(
@@ -317,14 +353,14 @@ describe("pageTranslationManager mutation re-walk", () => {
     const accordion = document.getElementById("accordion") as HTMLElement
     const panel = document.getElementById("panel") as HTMLElement
 
-    expect(observer.observe).not.toHaveBeenCalled()
+    expect(observer!.observe).not.toHaveBeenCalled()
 
     accordion.setAttribute("aria-hidden", "false")
     await flushDomUpdates()
 
-    expect(observer.observe).toHaveBeenCalledWith(panel)
+    expect(observer!.observe).toHaveBeenCalledWith(panel)
 
-    await observer.triggerIntersect(panel)
+    await observer!.triggerIntersect(panel)
     await flushDomUpdates()
 
     expect(mockTranslateWalkedElement).toHaveBeenCalledWith(
@@ -354,14 +390,14 @@ describe("pageTranslationManager mutation re-walk", () => {
     const accordion = document.getElementById("accordion") as HTMLElement
     const panel = document.getElementById("panel") as HTMLElement
 
-    expect(observer.observe).not.toHaveBeenCalled()
+    expect(observer!.observe).not.toHaveBeenCalled()
 
     accordion.classList.remove("closed")
     await flushDomUpdates()
 
-    expect(observer.observe).toHaveBeenCalledWith(panel)
+    expect(observer!.observe).toHaveBeenCalledWith(panel)
 
-    await observer.triggerIntersect(panel)
+    await observer!.triggerIntersect(panel)
     await flushDomUpdates()
 
     expect(mockTranslateWalkedElement).toHaveBeenCalledWith(
@@ -1080,7 +1116,7 @@ describe("pageTranslationManager mutation re-walk", () => {
     await flushDomUpdates()
 
     const observer = intersectionObservers[0]
-    const observed = observer.observe.mock.calls.map((call) => call[0])
+    const observed = observer!.observe.mock.calls.map((call) => call[0])
     // The giant is split: its nested paragraphs are observed individually.
     expect(observed).toContain(inner1)
     expect(observed).toContain(inner2)

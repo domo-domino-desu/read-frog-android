@@ -1,4 +1,3 @@
-import type { TranslationActionContext } from "@/types/analytics"
 import type { Config } from "@/types/config/config"
 import type { WorkPacer } from "@/utils/scheduler"
 import { createWorkPacer, pauseIfBudgetSpent } from "@/utils/scheduler"
@@ -9,7 +8,14 @@ import {
   TRANSLATION_ONLY_ATTRIBUTE,
   WALKED_ATTRIBUTE,
 } from "../../../constants/dom-labels"
-import { isBlockTransNode, isHTMLElement, isTextNode, isTransNode } from "../../dom/filter"
+import {
+  isBlockTransNode,
+  isHTMLElement,
+  isNaturalBlockTransNode,
+  isSiteRuleForceBlockStyleElement,
+  isTextNode,
+  isTransNode,
+} from "../../dom/filter"
 import { translateNodes } from "./translation-modes"
 import { getTranslationOnlyAnchorState } from "./translation-state"
 
@@ -43,7 +49,7 @@ export async function translateWalkedElement(
   // so without this the walk keeps inserting wrappers/spinners into the page
   // the user just cleared (#1881).
   shouldContinue: () => boolean = () => true,
-  actionContext?: TranslationActionContext,
+  forceRetranslation: boolean = false,
 ): Promise<void> {
   // Self-pacing: a giant observed subtree (a flat article can label as ONE
   // huge paragraph unit, #1881) must not expand into thousands of wrapper
@@ -68,11 +74,19 @@ export async function translateWalkedElement(
 
   if (element.hasAttribute(PARAGRAPH_ATTRIBUTE)) {
     let hasBlockNodeChild = false
+    let hasBlockLayoutChild = false
 
     for (const child of element.childNodes) {
-      if (isHTMLElement(child) && child.hasAttribute(BLOCK_ATTRIBUTE)) {
-        hasBlockNodeChild = true
-        break
+      if (isHTMLElement(child)) {
+        if (child.hasAttribute(BLOCK_ATTRIBUTE)) {
+          hasBlockNodeChild = true
+        }
+        if (
+          isNaturalBlockTransNode(child) ||
+          (child.hasAttribute(BLOCK_ATTRIBUTE) && isSiteRuleForceBlockStyleElement(child, config))
+        ) {
+          hasBlockLayoutChild = true
+        }
       }
     }
 
@@ -80,22 +94,25 @@ export async function translateWalkedElement(
     const isFlexParent = computedStyle.display.includes("flex")
 
     if (!hasBlockNodeChild) {
-      promises.push(translateNodes([element], walkId, toggle, config, false, actionContext))
+      promises.push(translateNodes([element], walkId, toggle, config, false, forceRetranslation))
     } else {
       // prevent children change during iteration
       const children = [...element.childNodes]
       let consecutiveInlineNodes: ChildNode[] = []
       for (const child of children) {
         if (isTransNode(child) && isBlockTransNode(child) && !isTextNode(child)) {
-          // force the children to be block translation style unless the parent is a flex parent
+          // A Node-only forced block may split the translation run without
+          // changing wrapper layout. Natural block children and the combined
+          // Node+Style shape produced by legacy force-block migration retain
+          // the old group-level block wrapper hint.
           promises.push(
             translateNodes(
               consecutiveInlineNodes,
               walkId,
               toggle,
               config,
-              !isFlexParent,
-              actionContext,
+              !isFlexParent && hasBlockLayoutChild,
+              forceRetranslation,
             ),
           )
           consecutiveInlineNodes = []
@@ -107,7 +124,7 @@ export async function translateWalkedElement(
               toggle,
               pacer,
               shouldContinue,
-              actionContext,
+              forceRetranslation,
             ),
           )
         } else {
@@ -122,8 +139,8 @@ export async function translateWalkedElement(
             walkId,
             toggle,
             config,
-            !isFlexParent,
-            actionContext,
+            !isFlexParent && hasBlockLayoutChild,
+            forceRetranslation,
           ),
         )
       }
@@ -139,7 +156,7 @@ export async function translateWalkedElement(
             toggle,
             pacer,
             shouldContinue,
-            actionContext,
+            forceRetranslation,
           ),
         )
       }
@@ -155,7 +172,7 @@ export async function translateWalkedElement(
               toggle,
               pacer,
               shouldContinue,
-              actionContext,
+              forceRetranslation,
             ),
           )
         }

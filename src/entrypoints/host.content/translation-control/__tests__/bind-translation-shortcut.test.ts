@@ -49,7 +49,7 @@ describe("bindTranslationShortcutKey", () => {
 
   it("registers the page shortcut with the TanStack manager options", async () => {
     mockGetLocalConfig.mockResolvedValue({
-      translate: {
+      pageTranslation: {
         page: {
           shortcut: "Mod+E",
         },
@@ -75,7 +75,7 @@ describe("bindTranslationShortcutKey", () => {
 
   it("toggles page translation through the registered callback", async () => {
     mockGetLocalConfig.mockResolvedValue({
-      translate: {
+      pageTranslation: {
         page: {
           shortcut: "Mod+E",
         },
@@ -93,7 +93,7 @@ describe("bindTranslationShortcutKey", () => {
       unregister: mockUnregister,
     })
     mockGetLocalConfig.mockResolvedValue({
-      translate: {
+      pageTranslation: {
         page: {
           shortcut: "Mod+E",
         },
@@ -109,7 +109,7 @@ describe("bindTranslationShortcutKey", () => {
 
   it("skips registration when the shortcut is empty", async () => {
     mockGetLocalConfig.mockResolvedValue({
-      translate: {
+      pageTranslation: {
         page: {
           shortcut: "",
         },

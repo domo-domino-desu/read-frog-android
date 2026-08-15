@@ -62,6 +62,39 @@ describe("getProviderOptions", () => {
         thinkingLevel: "minimal",
         includeThoughts: false,
       })
+
+      const thinkingLevel35FlashLiteOptions = getProviderOptions("gemini-3.5-flash-lite", "google")
+      expect(thinkingLevel35FlashLiteOptions.google?.thinkingConfig).toMatchObject({
+        thinkingLevel: "minimal",
+        includeThoughts: false,
+      })
+
+      const thinkingLevel36FlashOptions = getProviderOptions("gemini-3.6-flash", "google")
+      expect(thinkingLevel36FlashOptions.google?.thinkingConfig).toMatchObject({
+        thinkingLevel: "minimal",
+        includeThoughts: false,
+      })
+
+      const thinkingLevelFlashLatestOptions = getProviderOptions("gemini-flash-latest", "google")
+      expect(thinkingLevelFlashLatestOptions.google?.thinkingConfig).toMatchObject({
+        thinkingLevel: "minimal",
+        includeThoughts: false,
+      })
+
+      const thinkingLevelFlashLiteLatestOptions = getProviderOptions(
+        "gemini-flash-lite-latest",
+        "google",
+      )
+      expect(thinkingLevelFlashLiteLatestOptions.google?.thinkingConfig).toMatchObject({
+        thinkingLevel: "minimal",
+        includeThoughts: false,
+      })
+
+      const thinkingLevelProLatestOptions = getProviderOptions("gemini-pro-latest", "google")
+      expect(thinkingLevelProLatestOptions.google?.thinkingConfig).toMatchObject({
+        thinkingLevel: "low",
+        includeThoughts: false,
+      })
     })
 
     it("should return options for claude models", () => {
@@ -134,6 +167,19 @@ describe("getProviderOptions", () => {
     it("should expose the supported Anthropic Fable model ids", () => {
       expect(LLM_PROVIDER_MODELS.anthropic).toContain("claude-fable-5")
       expect(LLM_PROVIDER_MODELS.bedrock).toContain("us.anthropic.claude-fable-5")
+    })
+
+    it("should expose the live Cohere Command model ids and none of the retired ones", () => {
+      expect(LLM_PROVIDER_MODELS.cohere).toEqual([
+        "command-a-plus-05-2026",
+        "command-a-03-2025",
+        "command-a-reasoning-08-2025",
+        "command-a-vision-07-2025",
+        "command-a-translate-08-2025",
+        "command-r-plus-08-2024",
+        "command-r-08-2024",
+        "command-r7b-12-2024",
+      ])
     })
 
     it("should return the documented floor for GPT-5 model-specific reasoning", () => {
@@ -386,10 +432,10 @@ describe("getProviderOptions", () => {
   describe("glm model pattern matching", () => {
     it("should match GLM-* models (case-insensitive)", () => {
       const uppercase = getProviderOptions("GLM-4-Plus", "openai-compatible")
-      expect(uppercase["openai-compatible"].thinking).toEqual({ type: "disabled" })
+      expect(uppercase["openai-compatible"]!.thinking).toEqual({ type: "disabled" })
 
       const lowercase = getProviderOptions("glm-4-flash", "openai-compatible")
-      expect(lowercase["openai-compatible"].thinking).toEqual({ type: "disabled" })
+      expect(lowercase["openai-compatible"]!.thinking).toEqual({ type: "disabled" })
 
       const mixed = getProviderOptions("GlM-3-Turbo", "tensdaq")
       expect(mixed.tensdaq?.thinking).toEqual({ type: "disabled" })
@@ -467,6 +513,28 @@ describe("getProviderOptions", () => {
           reasoningEffort: "minimal",
           textVerbosity: "low",
         },
+      })
+    })
+
+    it("should preserve Open Responses option names exactly as entered", () => {
+      const options = getProviderOptionsWithOverride("gpt-5-mini", "open-responses", {
+        reasoning_effort: "minimal",
+        verbosity: "low",
+      })
+
+      expect(options).toEqual({
+        "open-responses": {
+          reasoning_effort: "minimal",
+          verbosity: "low",
+        },
+      })
+    })
+
+    it("should continue recommending provider options for Open Responses", () => {
+      const options = getProviderOptionsWithOverride("qwen3-max", "open-responses")
+
+      expect(options).toEqual({
+        "open-responses": { enableThinking: false },
       })
     })
   })

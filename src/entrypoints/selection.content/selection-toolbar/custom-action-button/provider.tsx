@@ -1,12 +1,16 @@
-import type { ReactNode } from "react"
+import type { ComponentProps, ReactNode } from "react"
 import type { SelectionSession } from "../atoms"
+import type { SelectionPopoverActions } from "@/components/ui/selection-popover"
 import { useAtomValue, useSetAtom } from "jotai"
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useHostedAiProviderOptions } from "@/components/llm-providers/use-hosted-ai-provider-options"
 import { toastManager } from "@/components/ui/base-ui/toast"
 import { SelectionPopover } from "@/components/ui/selection-popover"
 import { ANALYTICS_FEATURE, ANALYTICS_SURFACE } from "@/types/analytics"
 import { createFeatureUsageContext, trackFeatureUsed } from "@/utils/analytics"
+import { classifyResolvedProvider, UNKNOWN_FEATURE_PROVIDER } from "@/utils/analytics-provider"
 import { configFieldsAtomMap, writeConfigAtom } from "@/utils/atoms/config"
+import { findSelectionToolbarAction, patchSelectionToolbarAction } from "@/utils/custom-actions"
 import { onMessage } from "@/utils/message"
 import {
   getSelectableProvidersForCapability,
@@ -49,6 +53,20 @@ interface SelectionCustomActionContextValue {
 
 const SelectionCustomActionContext = createContext<SelectionCustomActionContextValue | null>(null)
 
+/**
+ * Keeps the hosted-status hook inside SelectionPopover.Content, which stays
+ * unmounted until the popover first opens — the selection app mounts on every
+ * page, and merely loading a page must not fire hosted-AI session/status
+ * requests.
+ */
+function CustomActionFooterContent({
+  providers,
+  ...props
+}: ComponentProps<typeof SelectionToolbarFooterContent>) {
+  const customActionProviders = useHostedAiProviderOptions("customAction", providers)
+  return <SelectionToolbarFooterContent providers={customActionProviders} {...props} />
+}
+
 function useSelectionCustomActionContext() {
   const context = use(SelectionCustomActionContext)
   if (!context) {
@@ -85,7 +103,7 @@ export function SelectionCustomActionProvider({ children }: { children: ReactNod
   const isSaveToNotebaseDialogOpen = useAtomValue(isSaveToNotebaseDialogOpenAtom)
   const bodyRef = useRef<HTMLDivElement>(null)
   const pendingOpenRequestRef = useRef<SelectionCustomActionPendingOpenRequest | null>(null)
-  const reopenFrameRef = useRef<number | null>(null)
+  const popoverActionsRef = useRef<SelectionPopoverActions | null>(null)
   const nextEphemeralSessionIdRef = useRef(0)
   const trackedPrecheckErrorKeyRef = useRef<string | null>(null)
   const { resolveContextMenuOpenRequest } = useSelectionOpenRequestResolver(selectionSession)
@@ -100,29 +118,25 @@ export function SelectionCustomActionProvider({ children }: { children: ReactNod
   }, [activeSession?.contextSnapshot.text, cleanSelection])
   const webPageContext = useCustomActionWebPageContext(isOpen, popoverSessionKey)
   const titleText = (webPageContext?.webTitle ?? document.title) || null
-  const activeAction = useMemo(
-    () =>
-      selectionToolbarConfig.customActions.find(
-        (action) => action.enabled !== false && action.id === activeActionId,
-      ) ?? null,
-    [activeActionId, selectionToolbarConfig.customActions],
-  )
+  const activeAction = useMemo(() => {
+    if (!activeActionId) {
+      return null
+    }
+    const action = findSelectionToolbarAction(selectionToolbarConfig, activeActionId)
+    return action && action.enabled !== false ? action : null
+  }, [activeActionId, selectionToolbarConfig])
   const customActionRequest = useMemo(
     () => ({
       language,
       action: activeAction,
       provider: activeAction
-        ? resolveProviderRefForCapability(
-            "selectionToolbar.customAction",
-            providersConfig,
-            activeAction.providerId,
-          )
+        ? resolveProviderRefForCapability("customAction", providersConfig, activeAction.providerId)
         : null,
     }),
     [activeAction, language, providersConfig],
   )
-  const customActionProviders = useMemo(
-    () => getSelectableProvidersForCapability("selectionToolbar.customAction", providersConfig),
+  const baseCustomActionProviders = useMemo(
+    () => getSelectableProvidersForCapability("customAction", providersConfig),
     [providersConfig],
   )
   const executionPlan = useMemo(
@@ -157,30 +171,29 @@ export function SelectionCustomActionProvider({ children }: { children: ReactNod
     }
   }, [])
 
+  // Anchor application is owned by SelectionPopover.Root (via requestOpen) so
+  // a pinned popover reused in place never moves.
   const commitOpenRequest = useCallback((request: SelectionCustomActionPendingOpenRequest) => {
     pendingOpenRequestRef.current = request
-    if (request.anchor) {
-      setAnchor(request.anchor)
-    }
   }, [])
+
+  const applyPendingSession = useCallback(() => {
+    const pendingRequest = pendingOpenRequestRef.current
+
+    setActiveSession(pendingRequest?.session ?? selectionSession)
+    setActiveActionId(pendingRequest?.actionId ?? null)
+    setSourceSurface(pendingRequest?.surface ?? ANALYTICS_SURFACE.SELECTION_TOOLBAR)
+    setIsSelectionToolbarVisible(false)
+    pendingOpenRequestRef.current = null
+  }, [selectionSession, setIsSelectionToolbarVisible])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       resetSessionState()
 
       if (nextOpen) {
-        const pendingRequest = pendingOpenRequestRef.current
-        const nextSession = pendingRequest?.session ?? selectionSession
-
-        setActiveSession(nextSession)
-        setActiveActionId(pendingRequest?.actionId ?? null)
-        setSourceSurface(pendingRequest?.surface ?? ANALYTICS_SURFACE.SELECTION_TOOLBAR)
         setPopoverSessionKey((prev) => prev + 1)
-        if (pendingRequest?.anchor) {
-          setAnchor(pendingRequest.anchor)
-        }
-        setIsSelectionToolbarVisible(false)
-        pendingOpenRequestRef.current = null
+        applyPendingSession()
       } else {
         resetPopoverSession({
           clearAnchor: pendingOpenRequestRef.current === null,
@@ -189,30 +202,25 @@ export function SelectionCustomActionProvider({ children }: { children: ReactNod
 
       setIsOpen(nextOpen)
     },
-    [resetPopoverSession, resetSessionState, selectionSession, setIsSelectionToolbarVisible],
+    [applyPendingSession, resetPopoverSession, resetSessionState],
   )
+
+  // Pinned popovers are reused in place for a new selection or action: the
+  // window keeps its position, size, and pin state while the action reruns.
+  const handleReuseRequest = useCallback(() => {
+    resetSessionState()
+    applyPendingSession()
+    // Forces a rerun even when the retriggered request resolves to an
+    // identical execution key.
+    setRerunNonce((prev) => prev + 1)
+  }, [applyPendingSession, resetSessionState])
 
   const openActionRequest = useCallback(
     (request: SelectionCustomActionPendingOpenRequest) => {
-      if (isOpen) {
-        handleOpenChange(false)
-
-        if (reopenFrameRef.current !== null) {
-          cancelAnimationFrame(reopenFrameRef.current)
-        }
-
-        reopenFrameRef.current = requestAnimationFrame(() => {
-          reopenFrameRef.current = null
-          commitOpenRequest(request)
-          handleOpenChange(true)
-        })
-        return
-      }
-
       commitOpenRequest(request)
-      handleOpenChange(true)
+      popoverActionsRef.current?.requestOpen(request.anchor ?? null)
     },
-    [commitOpenRequest, handleOpenChange, isOpen],
+    [commitOpenRequest],
   )
 
   const openToolbarCustomAction = useCallback(
@@ -246,10 +254,8 @@ export function SelectionCustomActionProvider({ children }: { children: ReactNod
 
   const openContextMenuCustomAction = useCallback(
     (actionId: string) => {
-      const action = selectionToolbarConfig.customActions.find(
-        (candidate) => candidate.enabled !== false && candidate.id === actionId,
-      )
-      if (!action) {
+      const action = findSelectionToolbarAction(selectionToolbarConfig, actionId)
+      if (!action || action.enabled === false) {
         const nextError = createSelectionToolbarPrecheckError("customAction", "actionUnavailable")
         void trackFeatureUsed({
           ...createFeatureUsageContext(
@@ -260,6 +266,7 @@ export function SelectionCustomActionProvider({ children }: { children: ReactNod
               action_id: actionId,
             },
           ),
+          ...UNKNOWN_FEATURE_PROVIDER,
           outcome: "failure",
         })
         toastManager.add({ type: "error", title: nextError.description })
@@ -279,6 +286,9 @@ export function SelectionCustomActionProvider({ children }: { children: ReactNod
               action_name: action.name,
             },
           ),
+          ...classifyResolvedProvider(
+            resolveProviderRefForCapability("customAction", providersConfig, action.providerId),
+          ),
           outcome: "failure",
         })
         toastManager.add({ type: "error", title: nextError.description })
@@ -292,7 +302,7 @@ export function SelectionCustomActionProvider({ children }: { children: ReactNod
         surface: ANALYTICS_SURFACE.CONTEXT_MENU,
       })
     },
-    [openActionRequest, resolveContextMenuOpenRequest, selectionToolbarConfig.customActions],
+    [openActionRequest, providersConfig, resolveContextMenuOpenRequest, selectionToolbarConfig],
   )
 
   const handleProviderChange = useCallback(
@@ -301,15 +311,10 @@ export function SelectionCustomActionProvider({ children }: { children: ReactNod
         return
       }
 
-      const updatedCustomActions = selectionToolbarConfig.customActions.map((action) =>
-        action.id === activeActionId ? { ...action, providerId } : action,
-      )
-
       void setConfig({
-        selectionToolbar: {
-          ...selectionToolbarConfig,
-          customActions: updatedCustomActions,
-        },
+        selectionToolbar: patchSelectionToolbarAction(selectionToolbarConfig, activeActionId, {
+          providerId,
+        }),
       })
     },
     [activeActionId, selectionToolbarConfig, setConfig],
@@ -324,14 +329,6 @@ export function SelectionCustomActionProvider({ children }: { children: ReactNod
       openContextMenuCustomAction(message.data.actionId)
     })
   }, [openContextMenuCustomAction])
-
-  useEffect(() => {
-    return () => {
-      if (reopenFrameRef.current !== null) {
-        cancelAnimationFrame(reopenFrameRef.current)
-      }
-    }
-  }, [])
 
   useEffect(() => {
     if (!isOpen || !executionPlan.error || executionPlan.executionContext) {
@@ -361,6 +358,7 @@ export function SelectionCustomActionProvider({ children }: { children: ReactNod
 
     void trackFeatureUsed({
       ...analyticsContext,
+      ...classifyResolvedProvider(customActionRequest.provider),
       outcome: "failure",
     })
   }, [
@@ -370,6 +368,7 @@ export function SelectionCustomActionProvider({ children }: { children: ReactNod
     executionPlan.executionContext,
     isOpen,
     popoverSessionKey,
+    customActionRequest.provider,
     sourceSurface,
   ])
 
@@ -388,6 +387,8 @@ export function SelectionCustomActionProvider({ children }: { children: ReactNod
         onOpenChange={handleOpenChange}
         anchor={anchor}
         onAnchorChange={setAnchor}
+        actionsRef={popoverActionsRef}
+        onReuseRequest={handleReuseRequest}
         disablePointerDismissal={isSaveToNotebaseDialogOpen}
       >
         <SelectionPopover.Content
@@ -405,7 +406,10 @@ export function SelectionCustomActionProvider({ children }: { children: ReactNod
             </div>
           </SelectionPopover.Header>
 
-          <SelectionPopover.Body ref={bodyRef}>
+          <SelectionPopover.Body
+            key={`${popoverSessionKey}:${activeSession?.id ?? 0}`}
+            ref={bodyRef}
+          >
             <CustomActionContent
               isRunning={displayedIsRunning}
               outputSchema={activeAction?.outputSchema ?? []}
@@ -415,9 +419,9 @@ export function SelectionCustomActionProvider({ children }: { children: ReactNod
             />
             <SelectionToolbarErrorAlert error={displayedError} />
           </SelectionPopover.Body>
-          <SelectionToolbarFooterContent
+          <CustomActionFooterContent
             paragraphsText={paragraphsText}
-            providers={customActionProviders}
+            providers={baseCustomActionProviders}
             titleText={titleText}
             value={customActionRequest.provider?.id ?? ""}
             onProviderChange={handleProviderChange}
@@ -433,7 +437,7 @@ export function SelectionCustomActionProvider({ children }: { children: ReactNod
                 <CustomActionToolButton action={activeAction} />
               </>
             )}
-          </SelectionToolbarFooterContent>
+          </CustomActionFooterContent>
         </SelectionPopover.Content>
       </SelectionPopover.Root>
       <SaveToNotebaseDialogHost />

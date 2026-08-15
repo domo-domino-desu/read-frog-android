@@ -24,8 +24,8 @@ describe("dEFAULT_CONFIG", () => {
     })
     vi.resetModules()
 
-    const { DEFAULT_CONFIG } = await import("../config")
-    const defaultDictionaryAction = DEFAULT_CONFIG.selectionToolbar.customActions[0]
+    const { createDefaultDictionaryAction, DEFAULT_CONFIG } = await import("../config")
+    const defaultDictionaryAction = createDefaultDictionaryAction()
 
     expect(defaultDictionaryAction).toEqual(
       expect.objectContaining({
@@ -40,7 +40,7 @@ describe("dEFAULT_CONFIG", () => {
         (field) => typeof field.id === "string" && field.id.length > 0,
       ),
     ).toBe(true)
-    expect(getRandomValues).toHaveBeenCalled()
+    expect(DEFAULT_CONFIG.selectionToolbar.customActions).toEqual([])
   })
 
   it("seeds default translation providers and the default LLM providers in the default providers config", async () => {
@@ -57,21 +57,21 @@ describe("dEFAULT_CONFIG", () => {
       "microsoft-translate-default",
       "google-translate-default",
       "openai-default",
-      "deepseek-default",
+      "jalapenocloud-default",
       "atlascloud-default",
     ])
-    expect(DEFAULT_CONFIG.translate.providerId).toBe("microsoft-translate-default")
+    expect(DEFAULT_CONFIG.pageTranslation.providerId).toBe("microsoft-translate-default")
     expect(DEFAULT_CONFIG.selectionToolbar.features.translate.providerId).toBe(
       "microsoft-translate-default",
     )
     expect(DEFAULT_CONFIG.inputTranslation.providerId).toBe("microsoft-translate-default")
     expect(DEFAULT_CONFIG.videoSubtitles.providerId).toBe("microsoft-translate-default")
     expect(
-      DEFAULT_CONFIG.providersConfig.find((provider) => provider.id === "deepseek-default"),
+      DEFAULT_CONFIG.providersConfig.find((provider) => provider.id === "jalapenocloud-default"),
     ).toEqual(
       expect.objectContaining({
         model: {
-          model: "deepseek-v4-flash",
+          model: "DeepSeek-V4-Flash",
           isCustomModel: false,
           customModel: null,
         },
@@ -90,8 +90,34 @@ describe("dEFAULT_CONFIG", () => {
     )
   })
 
-  it("rebuilds schema-valid default custom actions for persistence", async () => {
-    const { buildFreshDefaultConfig, DEFAULT_CONFIG } = await import("../config")
+  it("defaults fresh hover translation off", async () => {
+    const { DEFAULT_CONFIG } = await import("../config")
+
+    expect(DEFAULT_CONFIG.pageTranslation.node.forceRetranslation).toBe(false)
+  })
+
+  it("keeps pre-v090 config parseable until the background migration runs", async () => {
+    const { DEFAULT_CONFIG } = await import("../config")
+    const { configSchema } = await import("@/types/config/config")
+    const legacyConfig = structuredClone(DEFAULT_CONFIG)
+    const legacyNode = legacyConfig.pageTranslation.node as Partial<
+      typeof legacyConfig.pageTranslation.node
+    >
+
+    delete legacyNode.forceRetranslation
+    legacyConfig.language.targetCode = "jpn"
+
+    const result = configSchema.safeParse(legacyConfig)
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.pageTranslation.node.forceRetranslation).toBe(false)
+    expect(result.data.language.targetCode).toBe("jpn")
+  })
+
+  it("rebuilds schema-valid built-in action state for persistence", async () => {
+    const { buildFreshDefaultConfig, createDefaultDictionaryAction, DEFAULT_CONFIG } =
+      await import("../config")
     const { configSchema } = await import("@/types/config/config")
 
     const config = buildFreshDefaultConfig()
@@ -100,7 +126,12 @@ describe("dEFAULT_CONFIG", () => {
     expect(config.selectionToolbar.customActions).not.toBe(
       DEFAULT_CONFIG.selectionToolbar.customActions,
     )
-    expect(config.selectionToolbar.customActions[0]).toEqual(
+    expect(config.selectionToolbar.builtInActions.dictionary).toEqual({
+      enabled: true,
+      providerId: "read-frog-free-ai",
+    })
+    expect(config.selectionToolbar.customActions).toEqual([])
+    expect(createDefaultDictionaryAction()).toEqual(
       expect.objectContaining({
         id: "default-dictionary",
         name: expect.any(String),

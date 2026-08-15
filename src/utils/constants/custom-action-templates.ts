@@ -4,7 +4,7 @@ import { getRandomUUID } from "@/utils/crypto-polyfill"
 import { i18n } from "@/utils/i18n"
 import { createOutputSchemaField } from "./custom-action"
 
-const T_PREFIX = "options.floatingButtonAndToolbar.selectionToolbar.customActions.templates"
+const T_PREFIX = "options.selectionToolbar.customActions.templates"
 type I18nKey = keyof GeneratedI18nStructure
 
 export interface CustomActionTemplate {
@@ -61,16 +61,16 @@ export const CUSTOM_ACTION_TEMPLATES: CustomActionTemplate[] = [
           "dictionary-definition",
         ),
         createOutputSchemaField(
-          i18n.t(`${T_PREFIX}.dictionary.fieldParagraphs`),
+          i18n.t(`${T_PREFIX}.dictionary.fieldSentence`),
           "string",
-          i18n.t(`${T_PREFIX}.dictionary.fieldParagraphsDescription`),
+          i18n.t(`${T_PREFIX}.dictionary.fieldSentenceDescription`),
           "dictionary-context",
           true,
         ),
         createOutputSchemaField(
-          i18n.t(`${T_PREFIX}.dictionary.fieldParagraphsTranslation`),
+          i18n.t(`${T_PREFIX}.dictionary.fieldSentenceTranslation`),
           "string",
-          i18n.t(`${T_PREFIX}.dictionary.fieldParagraphsTranslationDescription`),
+          i18n.t(`${T_PREFIX}.dictionary.fieldSentenceTranslationDescription`),
           "dictionary-context-translation",
         ),
         createOutputSchemaField(
@@ -124,9 +124,7 @@ export const CUSTOM_ACTION_TEMPLATES: CustomActionTemplate[] = [
       prompt: "",
       outputSchema: [
         createOutputSchemaField(
-          i18n.t(
-            "options.floatingButtonAndToolbar.selectionToolbar.customActions.form.defaultFieldName",
-          ),
+          i18n.t("options.selectionToolbar.customActions.form.defaultFieldName"),
         ),
       ],
     }),

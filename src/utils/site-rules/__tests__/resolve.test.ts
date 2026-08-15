@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import type { SiteRule } from "@/types/config/site-rules"
 import { describe, expect, it } from "vitest"
+import { siteRuleSchema } from "@/types/config/site-rules"
 import { EMPTY_RESOLVED_SITE_RULE, resolveSiteRule } from "../resolve"
 
 const URL_ON_SITE = "https://example.com/article"
@@ -137,12 +138,18 @@ describe("resolveSiteRule", () => {
           includeSelectors: ["article"],
           "includeSelectors.add": [".content"],
           "includeSelectors.remove": ["article"],
-          forceBlockSelectors: [".post"],
-          "forceBlockSelectors.add": [".card"],
-          "forceBlockSelectors.remove": [".post"],
-          forceInlineSelectors: [".tag"],
-          "forceInlineSelectors.add": [".badge"],
-          "forceInlineSelectors.remove": [".tag"],
+          forceBlockNodeSelectors: [".block-node"],
+          "forceBlockNodeSelectors.add": [".block-node-added"],
+          "forceBlockNodeSelectors.remove": [".block-node"],
+          forceBlockStyleSelectors: [".block-style"],
+          "forceBlockStyleSelectors.add": [".block-style-added"],
+          "forceBlockStyleSelectors.remove": [".block-style"],
+          forceInlineNodeSelectors: [".inline-node"],
+          "forceInlineNodeSelectors.add": [".inline-node-added"],
+          "forceInlineNodeSelectors.remove": [".inline-node"],
+          forceInlineStyleSelectors: [".inline-style"],
+          "forceInlineStyleSelectors.add": [".inline-style-added"],
+          "forceInlineStyleSelectors.remove": [".inline-style"],
           preserveTextSelectors: [".code"],
           "preserveTextSelectors.add": [".math"],
           "preserveTextSelectors.remove": [".code"],
@@ -153,9 +160,131 @@ describe("resolveSiteRule", () => {
     )
 
     expect(resolved.includeSelector).toBe(".content")
-    expect(resolved.forceBlockSelector).toBe(".card")
-    expect(resolved.forceInlineSelector).toBe(".badge")
+    expect(resolved.forceBlockNodeSelector).toBe(".block-node-added")
+    expect(resolved.forceBlockStyleSelector).toBe(".block-style-added")
+    expect(resolved.forceInlineNodeSelector).toBe(".inline-node-added")
+    expect(resolved.forceInlineStyleSelector).toBe(".inline-style-added")
     expect(resolved.preserveTextSelector).toBe(".math")
+  })
+
+  it("merges all four force selector axes independently", () => {
+    const resolved = resolveSiteRule(
+      URL_ON_SITE,
+      [
+        rule({
+          id: "built-in",
+          forceBlockNodeSelectors: [".block-node"],
+          forceBlockStyleSelectors: [".block-style"],
+        }),
+      ],
+      [
+        rule({
+          id: "user",
+          forceInlineNodeSelectors: [".inline-node"],
+          forceInlineStyleSelectors: [".inline-style"],
+        }),
+      ],
+      [],
+    )
+
+    expect(resolved.forceBlockNodeSelector).toBe(".block-node")
+    expect(resolved.forceBlockStyleSelector).toBe(".block-style")
+    expect(resolved.forceInlineNodeSelector).toBe(".inline-node")
+    expect(resolved.forceInlineStyleSelector).toBe(".inline-style")
+  })
+
+  it("drops invalid selectors independently on all four force axes", () => {
+    const resolved = resolveSiteRule(
+      URL_ON_SITE,
+      [],
+      [
+        rule({
+          id: "user",
+          forceBlockNodeSelectors: ["bad-base[", ".removed-block-node"],
+          "forceBlockNodeSelectors.add": ["bad-add[", ".block-node"],
+          "forceBlockNodeSelectors.remove": ["bad-remove[", ".removed-block-node"],
+          forceBlockStyleSelectors: ["bad-base[", ".removed-block-style"],
+          "forceBlockStyleSelectors.add": ["bad-add[", ".block-style"],
+          "forceBlockStyleSelectors.remove": ["bad-remove[", ".removed-block-style"],
+          forceInlineNodeSelectors: ["bad-base[", ".removed-inline-node"],
+          "forceInlineNodeSelectors.add": ["bad-add[", ".inline-node"],
+          "forceInlineNodeSelectors.remove": ["bad-remove[", ".removed-inline-node"],
+          forceInlineStyleSelectors: ["bad-base[", ".removed-inline-style"],
+          "forceInlineStyleSelectors.add": ["bad-add[", ".inline-style"],
+          "forceInlineStyleSelectors.remove": ["bad-remove[", ".removed-inline-style"],
+        }),
+      ],
+      [],
+    )
+
+    expect(resolved.forceBlockNodeSelector).toBe(".block-node")
+    expect(resolved.forceBlockStyleSelector).toBe(".block-style")
+    expect(resolved.forceInlineNodeSelector).toBe(".inline-node")
+    expect(resolved.forceInlineStyleSelector).toBe(".inline-style")
+  })
+
+  it("allows a later rule to re-add selectors removed by an earlier rule", () => {
+    const resolved = resolveSiteRule(
+      URL_ON_SITE,
+      [
+        rule({
+          id: "base",
+          forceBlockNodeSelectors: [".block-node"],
+          forceBlockStyleSelectors: [".block-style"],
+          forceInlineNodeSelectors: [".inline-node"],
+          forceInlineStyleSelectors: [".inline-style"],
+        }),
+      ],
+      [
+        rule({
+          id: "remove",
+          "forceBlockNodeSelectors.remove": [".block-node"],
+          "forceBlockStyleSelectors.remove": [".block-style"],
+          "forceInlineNodeSelectors.remove": [".inline-node"],
+          "forceInlineStyleSelectors.remove": [".inline-style"],
+        }),
+        rule({
+          id: "re-add",
+          "forceBlockNodeSelectors.add": [".block-node"],
+          "forceBlockStyleSelectors.add": [".block-style"],
+          "forceInlineNodeSelectors.add": [".inline-node"],
+          "forceInlineStyleSelectors.add": [".inline-style"],
+        }),
+      ],
+      [],
+    )
+
+    expect(resolved.forceBlockNodeSelector).toBe(".block-node")
+    expect(resolved.forceBlockStyleSelector).toBe(".block-style")
+    expect(resolved.forceInlineNodeSelector).toBe(".inline-node")
+    expect(resolved.forceInlineStyleSelector).toBe(".inline-style")
+  })
+
+  it("keeps selector syntax validation out of the lenient storage schema", () => {
+    const parsed = siteRuleSchema.safeParse({
+      id: "user",
+      matches: "example.com",
+      forceBlockNodeSelectors: ["bad["],
+      forceBlockStyleSelectors: ["bad["],
+      forceInlineNodeSelectors: ["bad["],
+      forceInlineStyleSelectors: ["bad["],
+    })
+
+    expect(parsed.success).toBe(true)
+  })
+
+  it("does not retain the pre-v87 force selector aliases in the canonical schema", () => {
+    const parsed = siteRuleSchema.parse({
+      id: "legacy",
+      matches: "example.com",
+      forceBlockSelectors: [".legacy-block"],
+      "forceBlockSelectors.add": [".legacy-block-add"],
+      "forceInlineSelectors.remove": [".legacy-inline-remove"],
+    })
+
+    expect(parsed).not.toHaveProperty("forceBlockSelectors")
+    expect(parsed).not.toHaveProperty("forceBlockSelectors.add")
+    expect(parsed).not.toHaveProperty("forceInlineSelectors.remove")
   })
 
   it("drops invalid selector deltas without killing valid siblings", () => {
@@ -174,15 +303,148 @@ describe("resolveSiteRule", () => {
     expect(resolved.preserveTextSelector).toBe(".token")
   })
 
+  describe("tag-set families", () => {
+    it("leaves every family null when no matched rule touches it", () => {
+      const resolved = resolveSiteRule(
+        URL_ON_SITE,
+        [rule({ id: "built-in", excludeSelectors: ["nav"] })],
+        [],
+        [],
+      )
+      expect(resolved.dontWalkTags).toBeNull()
+      expect(resolved.dontWalkButTranslateTags).toBeNull()
+      expect(resolved.mainContentIgnoreTags).toBeNull()
+      expect(resolved.forceBlockTags).toBeNull()
+      expect(resolved.forceInlineTranslationTags).toBeNull()
+    })
+
+    it("seeds removals from the shipped defaults", () => {
+      const resolved = resolveSiteRule(
+        URL_ON_SITE,
+        [rule({ id: "built-in", "dontWalkButTranslateTags.remove": ["CODE"] })],
+        [],
+        [],
+      )
+      expect(resolved.dontWalkButTranslateTags).not.toBeNull()
+      expect(resolved.dontWalkButTranslateTags!.has("CODE")).toBe(false)
+      expect(resolved.dontWalkButTranslateTags!.has("TIME")).toBe(true)
+    })
+
+    it("lets a later rule re-add a tag removed by an earlier rule", () => {
+      const resolved = resolveSiteRule(
+        URL_ON_SITE,
+        [rule({ id: "built-in", "dontWalkButTranslateTags.remove": ["CODE"] })],
+        [rule({ id: "user", "dontWalkButTranslateTags.add": ["CODE"] })],
+        [],
+      )
+      expect(resolved.dontWalkButTranslateTags!.has("CODE")).toBe(true)
+    })
+
+    it("adds tags in raw, uppercase, and lowercase forms", () => {
+      const resolved = resolveSiteRule(
+        URL_ON_SITE,
+        [],
+        [rule({ id: "user", "dontWalkTags.add": ["foo-bar"] })],
+        [],
+      )
+      expect(resolved.dontWalkTags!.has("foo-bar")).toBe(true)
+      expect(resolved.dontWalkTags!.has("FOO-BAR")).toBe(true)
+    })
+
+    it("removes tags case-insensitively", () => {
+      const resolved = resolveSiteRule(
+        URL_ON_SITE,
+        [],
+        [rule({ id: "user", "dontWalkTags.remove": ["Svg", "pre"] })],
+        [],
+      )
+      expect(resolved.dontWalkTags!.has("svg")).toBe(false)
+      expect(resolved.dontWalkTags!.has("PRE")).toBe(false)
+    })
+
+    it("refuses to remove protected tags in any casing", () => {
+      const resolved = resolveSiteRule(
+        URL_ON_SITE,
+        [],
+        [rule({ id: "user", "dontWalkTags.remove": ["SCRIPT", "style", "Head"] })],
+        [],
+      )
+      expect(resolved.dontWalkTags!.has("SCRIPT")).toBe(true)
+      expect(resolved.dontWalkTags!.has("STYLE")).toBe(true)
+      expect(resolved.dontWalkTags!.has("HEAD")).toBe(true)
+    })
+
+    it("drops invalid tag names without killing valid siblings", () => {
+      const resolved = resolveSiteRule(
+        URL_ON_SITE,
+        [],
+        [
+          rule({
+            id: "user",
+            "dontWalkButTranslateTags.add": [".code", "div code", "1bad", "", "KBD"],
+          }),
+        ],
+        [],
+      )
+      expect(resolved.dontWalkButTranslateTags!.has("KBD")).toBe(true)
+      expect(resolved.dontWalkButTranslateTags!.has(".code")).toBe(false)
+      expect(resolved.dontWalkButTranslateTags!.has("div code")).toBe(false)
+    })
+
+    it("materializes the default set even for an empty delta", () => {
+      const resolved = resolveSiteRule(
+        URL_ON_SITE,
+        [],
+        [rule({ id: "user", "dontWalkButTranslateTags.add": [] })],
+        [],
+      )
+      expect(resolved.dontWalkButTranslateTags).not.toBeNull()
+      expect(resolved.dontWalkButTranslateTags!.has("CODE")).toBe(true)
+      expect(resolved.dontWalkButTranslateTags!.has("TIME")).toBe(true)
+    })
+
+    it("merges each family independently", () => {
+      const resolved = resolveSiteRule(
+        URL_ON_SITE,
+        [],
+        [
+          rule({
+            id: "user",
+            "mainContentIgnoreTags.remove": ["NAV"],
+            "forceBlockTags.add": ["X-CARD"],
+            "forceInlineTranslationTags.remove": ["SPAN"],
+          }),
+        ],
+        [],
+      )
+      expect(resolved.mainContentIgnoreTags!.has("NAV")).toBe(false)
+      expect(resolved.mainContentIgnoreTags!.has("HEADER")).toBe(true)
+      expect(resolved.forceBlockTags!.has("X-CARD")).toBe(true)
+      expect(resolved.forceBlockTags!.has("H1")).toBe(true)
+      expect(resolved.forceInlineTranslationTags!.has("SPAN")).toBe(false)
+      expect(resolved.forceInlineTranslationTags!.has("A")).toBe(true)
+      expect(resolved.dontWalkTags).toBeNull()
+      expect(resolved.dontWalkButTranslateTags).toBeNull()
+    })
+  })
+
   it("merges include and force selectors independently", () => {
     const resolved = resolveSiteRule(
       URL_ON_SITE,
-      [rule({ id: "built-in", includeSelectors: ["article"], forceBlockSelectors: [".post"] })],
-      [rule({ id: "user", forceInlineSelectors: [".tag"] })],
+      [
+        rule({
+          id: "built-in",
+          includeSelectors: ["article"],
+          forceBlockNodeSelectors: [".post"],
+        }),
+      ],
+      [rule({ id: "user", forceInlineStyleSelectors: [".tag"] })],
       [],
     )
     expect(resolved.includeSelector).toBe("article")
-    expect(resolved.forceBlockSelector).toBe(".post")
-    expect(resolved.forceInlineSelector).toBe(".tag")
+    expect(resolved.forceBlockNodeSelector).toBe(".post")
+    expect(resolved.forceInlineStyleSelector).toBe(".tag")
+    expect(resolved.forceBlockStyleSelector).toBeNull()
+    expect(resolved.forceInlineNodeSelector).toBeNull()
   })
 })

@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { env } from "@/env"
 import { configAtom } from "@/utils/atoms/config"
 import { DEFAULT_CONFIG } from "@/utils/constants/config"
+import { getBuiltInDictionaryAction } from "@/utils/custom-actions"
 import { i18n } from "@/utils/i18n"
 import { sendMessage } from "@/utils/message"
 import { orpcClient } from "@/utils/orpc/client"
@@ -152,14 +153,7 @@ function createConnectedAction(): SelectionToolbarCustomAction {
 }
 
 function createDictionaryAction(): SelectionToolbarCustomAction {
-  const action = cloneConfig(DEFAULT_CONFIG).selectionToolbar.customActions.find(
-    (item) => item.id === "default-dictionary",
-  )
-  if (!action) {
-    throw new Error("Default Dictionary action is not configured")
-  }
-
-  return action
+  return getBuiltInDictionaryAction(cloneConfig(DEFAULT_CONFIG).selectionToolbar)
 }
 
 function createConnectedDictionaryAction(): SelectionToolbarCustomAction {
@@ -199,6 +193,7 @@ function createSchema(columnId = "column-summary"): NotebaseGetSchemaOutput {
         config: { type: "string" },
         position: 0,
         isPrimary: true,
+        wrap: false,
         width: null,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -222,6 +217,7 @@ function createSchemaForAction(action: SelectionToolbarCustomAction): NotebaseGe
           : { type: "string" },
       position: index,
       isPrimary: index === 0,
+      wrap: false,
       width: null,
       createdAt: new Date(),
       updatedAt: new Date(),

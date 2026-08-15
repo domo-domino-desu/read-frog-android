@@ -22,10 +22,16 @@ import { SELECTION_CONTENT_OVERLAY_LAYERS } from "@/entrypoints/selection.conten
 import { env } from "@/env"
 import { configFieldsAtomMap } from "@/utils/atoms/config"
 import { authClient } from "@/utils/auth/auth-client"
+import {
+  findSelectionToolbarAction,
+  getSelectionToolbarActions,
+  replaceSelectionToolbarAction,
+} from "@/utils/custom-actions"
 import { i18n } from "@/utils/i18n"
 import { logger } from "@/utils/logger"
 import { sendMessage } from "@/utils/message"
 import { getUniqueName } from "@/utils/name"
+import { trackNoteSuggestionEvent } from "@/utils/note-suggestion/analytics"
 import {
   createNotebaseConnectedAccountSnapshot,
   formatNotebaseConnectedAccountLabel,
@@ -43,8 +49,6 @@ import {
   setPendingNotebaseSave,
 } from "@/utils/notebase/pending-save"
 import { orpcClient } from "@/utils/orpc/client"
-import { trackSaveSuggestionEvent } from "@/utils/save-suggestion/analytics"
-import { recordSaveSuggestionAccepted } from "@/utils/save-suggestion/cooldown"
 import { showNotebaseLimitExceededToast } from "./notebase-limit-toast"
 import { saveToNotebaseDialogAtom } from "./save-to-notebase-dialog-atom"
 
@@ -114,22 +118,24 @@ export function SaveToNotebaseDialogHost() {
       ? dialogState.pendingActionDraft
       : undefined
   const analyticsSource = dialogState.open ? dialogState.analyticsSource : undefined
+  const analyticsProvider = dialogState.open ? dialogState.analyticsProvider : undefined
 
   const closeDialog = () => {
     setDialogState({ open: false })
   }
 
   const recordSuggestionAcceptedIfNeeded = (actionName?: string) => {
-    if (analyticsSource !== "save_suggestion") {
+    if (analyticsSource !== "note_suggestion") {
       return
     }
 
-    void recordSaveSuggestionAccepted()
-    trackSaveSuggestionEvent("suggestion_accepted", { actionName })
+    trackNoteSuggestionEvent("suggestion_accepted", { actionName, provider: analyticsProvider })
   }
 
   const buildCustomActionsWithDraft = (draft: SelectionToolbarCustomAction) => {
-    const existingNames = new Set(selectionToolbarConfig.customActions.map((item) => item.name))
+    const existingNames = new Set(
+      getSelectionToolbarActions(selectionToolbarConfig).map((item) => item.name),
+    )
     const named = existingNames.has(draft.name)
       ? { ...draft, name: getUniqueName(draft.name, existingNames) }
       : draft
@@ -137,12 +143,12 @@ export function SaveToNotebaseDialogHost() {
   }
 
   /**
-   * Append a draft action (save suggestion flow) to config. Called at the
+   * Append a draft action (note suggestion flow) to config. Called at the
    * dialog confirm — the "real action button" moment — before login redirects,
    * so the background pending-save processor finds the action afterwards.
    */
   const ensureDraftActionInConfig = async (draft: SelectionToolbarCustomAction) => {
-    if (selectionToolbarConfig.customActions.some((item) => item.id === draft.id)) {
+    if (findSelectionToolbarAction(selectionToolbarConfig, draft.id)) {
       return
     }
 
@@ -172,23 +178,28 @@ export function SaveToNotebaseDialogHost() {
         variables.connectedAccount,
       )
       const draft = variables.pendingActionDraft
-      const hasAction = selectionToolbarConfig.customActions.some(
-        (item) => item.id === createdPendingSave.actionId,
+      const existingAction = findSelectionToolbarAction(
+        selectionToolbarConfig,
+        createdPendingSave.actionId,
       )
       // Draft path appends the action together with its connection in one
       // config write, so a failed notebase.create never leaves an orphan action.
-      const nextCustomActions =
-        draft && !hasAction
-          ? buildCustomActionsWithDraft({ ...draft, notebaseConnection: nextConnection })
-          : selectionToolbarConfig.customActions.map((item) =>
-              item.id === createdPendingSave.actionId
-                ? { ...item, notebaseConnection: nextConnection }
-                : item,
-            )
-      await setSelectionToolbarConfig({
-        ...selectionToolbarConfig,
-        customActions: nextCustomActions,
-      })
+      const nextSelectionToolbar =
+        draft && !existingAction
+          ? {
+              ...selectionToolbarConfig,
+              customActions: buildCustomActionsWithDraft({
+                ...draft,
+                notebaseConnection: nextConnection,
+              }),
+            }
+          : existingAction
+            ? replaceSelectionToolbarAction(selectionToolbarConfig, {
+                ...existingAction,
+                notebaseConnection: nextConnection,
+              })
+            : selectionToolbarConfig
+      await setSelectionToolbarConfig(nextSelectionToolbar)
 
       closeDialog()
       toastManager.add({

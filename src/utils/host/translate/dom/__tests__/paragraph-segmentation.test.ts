@@ -3,8 +3,10 @@ import type { Config } from "@/types/config/config"
 import { beforeEach, describe, expect, it } from "vitest"
 import { DEFAULT_CONFIG } from "@/utils/constants/config"
 import { CONTENT_WRAPPER_CLASS } from "@/utils/constants/dom-labels"
+import { walkAndLabelElement } from "@/utils/host/dom/traversal"
 import {
   buildVirtualParagraphUnits,
+  canSplitParagraphIntoDescendants,
   liftParagraphInsertionBoundary,
   moveParagraphInsertionBoundaryAfterTrailingInlineImages,
   type DOMBoundary,
@@ -110,8 +112,8 @@ describe("buildVirtualParagraphUnits", () => {
     const units = buildVirtualParagraphUnits(root, DEFAULT_CONFIG)
 
     expect(units.map((unit) => unit.text)).toEqual(["First", "Second"])
-    expect(units[0].insertionBoundary).toEqual({ container: firstText, offset: 5 })
-    expect(units[1].sourceFragments).toEqual([
+    expect(units[0]!.insertionBoundary).toEqual({ container: firstText, offset: 5 })
+    expect(units[1]!.sourceFragments).toEqual([
       { source: secondText, startOffset: 1, endOffset: 7, atomic: false },
     ])
   })
@@ -129,19 +131,19 @@ describe("buildVirtualParagraphUnits", () => {
     root.append(
       source,
       " ",
-      emojiImages[0],
+      emojiImages[0]!,
       "\t",
-      emojiImages[1],
+      emojiImages[1]!,
       "  ",
-      emojiImages[2],
-      emojiImages[3],
+      emojiImages[2]!,
+      emojiImages[3]!,
       " ",
     )
 
     const units = buildVirtualParagraphUnits(root, DEFAULT_CONFIG)
 
     expect(units.map((unit) => unit.text)).toEqual(["First paragraph", "Second paragraph"])
-    expect(units[1].insertionBoundary).toEqual({
+    expect(units[1]!.insertionBoundary).toEqual({
       container: root,
       offset: root.childNodes.length,
     })
@@ -194,7 +196,7 @@ describe("buildVirtualParagraphUnits", () => {
 
     const units = buildVirtualParagraphUnits(root, DEFAULT_CONFIG)
 
-    expect(units[1].insertionBoundary).toEqual({ container: root, offset: 1 })
+    expect(units[1]!.insertionBoundary).toEqual({ container: root, offset: 1 })
   })
 
   it("does not move a paragraph boundary past a trailing control", () => {
@@ -249,7 +251,7 @@ describe("buildVirtualParagraphUnits", () => {
       "Today we welcome @SohunSanka as our new head of GTM.",
       "Next paragraph",
     ])
-    expect(units[0].sourceFragments).toEqual([
+    expect(units[0]!.sourceFragments).toEqual([
       { source: before, startOffset: 0, endOffset: 17, atomic: false },
       { source: mention, startOffset: 0, endOffset: 11, atomic: true },
       { source: after, startOffset: 0, endOffset: 24, atomic: false },
@@ -265,7 +267,7 @@ describe("buildVirtualParagraphUnits", () => {
     const units = buildVirtualParagraphUnits(root, DEFAULT_CONFIG)
 
     expect(units.map((unit) => unit.text)).toEqual(["Before literal\n\nvalue", "After"])
-    expect(units[0].sourceFragments[1]).toEqual({
+    expect(units[0]!.sourceFragments[1]).toEqual({
       source: code,
       startOffset: 0,
       endOffset: 14,
@@ -325,7 +327,7 @@ describe("buildVirtualParagraphUnits", () => {
 
     const units = buildVirtualParagraphUnits(root, config)
 
-    expect(units[1].insertionBoundary).toEqual({ container: root, offset: 2 })
+    expect(units[1]!.insertionBoundary).toEqual({ container: root, offset: 2 })
   })
 
   it("lifts a boundary out of a terminal BUTTON even when excluded children follow its text", () => {
@@ -370,5 +372,75 @@ describe("buildVirtualParagraphUnits", () => {
       "1",
       "2",
     ])
+  })
+})
+
+describe("canSplitParagraphIntoDescendants", () => {
+  function walkedFixture(markup: string, whiteSpace: string): HTMLElement {
+    const root = createRoot(whiteSpace)
+    root.innerHTML = markup
+    document.body.appendChild(root)
+    walkAndLabelElement(root, "walk-split", DEFAULT_CONFIG)
+    return root
+  }
+
+  // Regression shape: https://x.com/davidjpark96/status/1789773192435060737 —
+  // a 22k-char note tweet whose pre-wrap tweetText div holds sibling inline
+  // spans (bold headings as their own spans); splitting observed each span as
+  // an independent unit and destroyed the blank-line paragraph interleaving.
+  it("refuses to split a pre-wrap flow into inline span paragraphs (X note tweet)", () => {
+    const root = walkedFixture(
+      "<span>First paragraph\n\nSecond paragraph</span><span>Bold heading</span>",
+      "pre-wrap",
+    )
+    const spans = [...root.querySelectorAll("span")]
+
+    expect(canSplitParagraphIntoDescendants(root, spans, DEFAULT_CONFIG)).toBe(false)
+  })
+
+  it("allows splitting a pre-wrap container into block paragraphs", () => {
+    const root = walkedFixture(
+      "<div>First message paragraph</div><div>Second message paragraph</div>",
+      "pre-wrap",
+    )
+    const divs = [...root.querySelectorAll("div")]
+
+    expect(canSplitParagraphIntoDescendants(root, divs, DEFAULT_CONFIG)).toBe(true)
+  })
+
+  it("allows splitting a normal white-space container into inline paragraphs (#1881)", () => {
+    const root = walkedFixture(
+      "<span>First flat segment</span><span>Second flat segment</span>",
+      "normal",
+    )
+    const spans = [...root.querySelectorAll("span")]
+
+    expect(canSplitParagraphIntoDescendants(root, spans, DEFAULT_CONFIG)).toBe(true)
+  })
+
+  it("allows splitting a pre-wrap flow with mixed block and inline paragraphs", () => {
+    // With a block descendant present the translation walker takes the
+    // per-child branch, so refusing the split would not reach the
+    // container-level virtual-paragraph plan — it would only lose gating.
+    const root = walkedFixture(
+      "<div>Block paragraph</div><span>Inline segment\n\nwith blank line</span>",
+      "pre-wrap",
+    )
+    const children = [...root.children] as HTMLElement[]
+
+    expect(canSplitParagraphIntoDescendants(root, children, DEFAULT_CONFIG)).toBe(true)
+  })
+
+  it("allows splitting a pre-wrap flow whose text has no blank-line delimiters", () => {
+    // A single-newline-only giant (log/code views) yields an EMPTY virtual
+    // plan; refusing the split would translate the whole giant as ONE
+    // request and forfeit viewport gating.
+    const root = walkedFixture(
+      "<span>line one\nline two</span><span>line three\nline four</span>",
+      "pre-wrap",
+    )
+    const spans = [...root.querySelectorAll("span")]
+
+    expect(canSplitParagraphIntoDescendants(root, spans, DEFAULT_CONFIG)).toBe(true)
   })
 })

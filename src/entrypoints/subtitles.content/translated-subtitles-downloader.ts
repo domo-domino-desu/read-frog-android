@@ -1,10 +1,10 @@
 import type { PlatformConfig } from "@/entrypoints/subtitles.content/platforms"
 import type { Config } from "@/types/config/config"
+import type { SerializableProviderRef } from "@/utils/providers/provider-ref"
 import type { SubtitlesFetcher } from "@/utils/subtitles/fetchers/types"
 import type { SubtitlesVideoContext } from "@/utils/subtitles/processor/translator"
 import type { SubtitlesFragment } from "@/utils/subtitles/types"
 import { toastManager } from "@/components/ui/base-ui/toast"
-import { getProviderConfigById } from "@/utils/config/helpers"
 import { getLocalConfig } from "@/utils/config/storage"
 import {
   MAX_GAP_MS,
@@ -17,6 +17,7 @@ import { aiSegmentBlock } from "@/utils/subtitles/processor/ai-segmentation"
 import { optimizeSubtitles } from "@/utils/subtitles/processor/optimizer"
 import {
   buildSubtitlesSummaryContextHash,
+  resolveSubtitlesProviderRef,
   fetchSubtitlesSummary,
   translateSubtitles,
 } from "@/utils/subtitles/processor/translator"
@@ -35,11 +36,16 @@ export class TranslatedSubtitlesDownloader {
   private isDownloading = false
   private operationId = 0
   private successTimeout: ReturnType<typeof setTimeout> | null = null
+  private snapshotFetcher: SubtitlesFetcher | null = null
 
   constructor(
-    private fetcher: SubtitlesFetcher,
+    private getFetcher: () => SubtitlesFetcher,
     private config: PlatformConfig,
   ) {}
+
+  private get fetcher(): SubtitlesFetcher {
+    return this.snapshotFetcher ?? this.getFetcher()
+  }
 
   download = async (): Promise<void> => {
     if (this.isDownloading) {
@@ -48,6 +54,7 @@ export class TranslatedSubtitlesDownloader {
 
     this.clearSuccessTimeout()
     this.isDownloading = true
+    this.snapshotFetcher = this.getFetcher()
     const operationId = ++this.operationId
     const pageTitle = document.title || ""
     const videoId = this.config.getVideoId?.()
@@ -112,6 +119,7 @@ export class TranslatedSubtitlesDownloader {
     } finally {
       if (this.isActive(operationId)) {
         this.isDownloading = false
+        this.snapshotFetcher = null
       }
     }
   }
@@ -119,6 +127,7 @@ export class TranslatedSubtitlesDownloader {
   dispose(): void {
     this.operationId++
     this.isDownloading = false
+    this.snapshotFetcher = null
     this.clearSuccessTimeout()
     this.setStatus(TranslatedDownloadPhase.Idle, null)
   }
@@ -160,11 +169,16 @@ export class TranslatedSubtitlesDownloader {
     operationId: number,
     pageTitle: string,
   ): Promise<SubtitlesFragment[]> {
+    // One resolve for the whole export: segmentation runs per 60s chunk, and a
+    // hosted ref would otherwise pay a hostedAi.status round trip per chunk.
+    const providerRef = await resolveSubtitlesProviderRef(config, "videoSubtitles")
+    this.assertActive(operationId)
     const fragments = await this.buildExportProcessedSubtitles(
       sourceSubtitles,
       sourceProcessedSubtitles,
       config,
       operationId,
+      providerRef,
     )
     this.assertActive(operationId)
     const videoContext = await this.buildExportVideoContext(
@@ -172,6 +186,7 @@ export class TranslatedSubtitlesDownloader {
       config,
       operationId,
       pageTitle,
+      providerRef,
     )
     this.assertActive(operationId)
     const translatedFragments: SubtitlesFragment[] = []
@@ -234,15 +249,19 @@ export class TranslatedSubtitlesDownloader {
     sourceProcessedSubtitles: SubtitlesFragment[],
     config: Config,
     operationId: number,
+    providerRef: SerializableProviderRef | null,
   ): Promise<SubtitlesFragment[]> {
-    if (!config.videoSubtitles.aiSegmentation || this.fetcher.isPreSegmented?.()) {
+    // No ref means AI segmentation cannot run (no provider, or the hosted tier
+    // is unavailable); the export then keeps the same rule-based result the
+    // feature-off path produces.
+    if (!config.videoSubtitles.aiSegmentation || this.fetcher.isPreSegmented?.() || !providerRef) {
       return [...sourceProcessedSubtitles]
     }
 
     const result: SubtitlesFragment[] = []
 
     for (const chunk of this.buildSourceSubtitleChunks(sourceSubtitles)) {
-      result.push(...(await this.buildExportProcessedChunk(chunk, config, operationId)))
+      result.push(...(await this.buildExportProcessedChunk(chunk, providerRef, operationId)))
       this.assertActive(operationId)
     }
 
@@ -251,14 +270,14 @@ export class TranslatedSubtitlesDownloader {
 
   private async buildExportProcessedChunk(
     chunk: SubtitlesFragment[],
-    config: Config,
+    providerRef: SerializableProviderRef,
     operationId: number,
   ): Promise<SubtitlesFragment[]> {
     const sourceLanguage = this.fetcher.getSourceLanguage()
     let segmented: SubtitlesFragment[]
 
     try {
-      segmented = await aiSegmentBlock(chunk, config)
+      segmented = await aiSegmentBlock(chunk, providerRef)
       this.assertActive(operationId)
     } catch {
       return optimizeSubtitles(chunk, sourceLanguage)
@@ -278,7 +297,7 @@ export class TranslatedSubtitlesDownloader {
         let retrySegmented: SubtitlesFragment[]
 
         try {
-          retrySegmented = await aiSegmentBlock(retryChunk, config)
+          retrySegmented = await aiSegmentBlock(retryChunk, providerRef)
           this.assertActive(operationId)
         } catch {
           return optimizeSubtitles(chunk, sourceLanguage)
@@ -326,12 +345,12 @@ export class TranslatedSubtitlesDownloader {
     let index = 0
 
     while (index < subtitles.length) {
-      const chunkStart = subtitles[index].start
+      const chunkStart = subtitles[index]!.start
       const chunkEnd = chunkStart + maxDurationMs
       const chunk: SubtitlesFragment[] = []
 
-      while (index < subtitles.length && subtitles[index].start < chunkEnd) {
-        chunk.push(subtitles[index])
+      while (index < subtitles.length && subtitles[index]!.start < chunkEnd) {
+        chunk.push(subtitles[index]!)
         index++
       }
 
@@ -390,17 +409,17 @@ export class TranslatedSubtitlesDownloader {
     for (let index = 0; index < sortedCandidates.length; index++) {
       const fragment = sortedCandidates[index]
       if (
-        !Number.isFinite(fragment.start) ||
-        !Number.isFinite(fragment.end) ||
-        fragment.end - fragment.start <= MAX_COLLAPSED_AI_SEGMENT_DURATION_MS ||
-        fragment.start < sourceStart ||
-        fragment.end > sourceEnd
+        !Number.isFinite(fragment!.start) ||
+        !Number.isFinite(fragment!.end) ||
+        fragment!.end - fragment!.start <= MAX_COLLAPSED_AI_SEGMENT_DURATION_MS ||
+        fragment!.start < sourceStart ||
+        fragment!.end > sourceEnd
       ) {
         return true
       }
 
       const previous = sortedCandidates[index - 1]
-      if (previous && previous.end > fragment.start) {
+      if (previous && previous.end > fragment!.start) {
         return true
       }
     }
@@ -435,16 +454,16 @@ export class TranslatedSubtitlesDownloader {
     config: Config,
     operationId: number,
     pageTitle: string,
+    providerRef: SerializableProviderRef | null,
   ): Promise<SubtitlesVideoContext> {
-    const providerConfig = getProviderConfigById(
-      config.providersConfig,
-      config.videoSubtitles.providerId,
-    )
     const videoContext: SubtitlesVideoContext = {
       videoTitle: pageTitle,
       subtitlesTextContent: sourceSubtitles.map((fragment) => fragment.text).join(""),
     }
-    const summaryContextHash = buildSubtitlesSummaryContextHash(videoContext, providerConfig)
+    const summaryContextHash = buildSubtitlesSummaryContextHash(
+      videoContext,
+      providerRef ?? undefined,
+    )
 
     if (summaryContextHash) {
       try {

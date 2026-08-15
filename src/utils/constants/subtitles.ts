@@ -14,6 +14,7 @@ export const SENTENCE_END_PATTERN = /[,.。?？！!；;…؟۔\n]$/
 export const TRANSLATION_BATCH_SIZE = 5
 export const TRANSLATE_LOOK_AHEAD_MS = 30_000
 export const PROCESS_LOOK_AHEAD_MS = 60_000
+export const MAX_LOOKAHEAD_RATE = 4
 
 // DOM IDs
 export const READ_FROG_SUBTITLES_UI_HOST_ID = "read-frog-subtitles-ui-host"
@@ -67,6 +68,8 @@ export const DEFAULT_DISPLAY_MODE = "bilingual" as const
 export const DEFAULT_TRANSLATION_POSITION = "above" as const
 export const DEFAULT_CONTROLS_HEIGHT = 60
 export const DEFAULT_SUBTITLE_POSITION = { percent: 10, anchor: "bottom" } as const
+// Mnemonic for "captions", and it echoes YouTube's own `C` key without taking it over.
+export const DEFAULT_SUBTITLES_TOGGLE_SHORTCUT_KEY = "Alt+C"
 // Subtitle controls sit on top of arbitrary host pages, so keep their theme fixed for readability.
 export const SUBTITLES_THEME = "dark" as const
 
@@ -77,3 +80,7 @@ export const SUBTITLE_FONT_FAMILIES = {
   "noto-sans": '"Noto Sans", "Noto Sans SC", "Noto Sans JP", "Noto Sans KR", sans-serif',
   "noto-serif": '"Noto Serif", "Noto Serif SC", "Noto Serif JP", "Noto Serif KR", serif',
 }
+
+// Subtitles source
+export const SUBTITLES_SOURCE = { NATIVE: "native", AI: "ai" } as const
+export type SubtitlesSource = (typeof SUBTITLES_SOURCE)[keyof typeof SUBTITLES_SOURCE]

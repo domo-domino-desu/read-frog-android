@@ -41,7 +41,7 @@ vi.mock("@/utils/atoms/config", async (importOriginal) => {
         features: {
           translate: {
             enabled: true,
-            providerId: "microsoft-translate-default",
+            providerId: "google-translate-default",
             shortcut: "Alt+T",
           },
           speak: { enabled: true },
@@ -357,6 +357,33 @@ describe("selectionToolbar - isInputOrTextarea logic", () => {
     }))
 
     await triggerMouseUpWithSelection(clickTarget)
+    expectToolbarHidden()
+  })
+
+  it("should not show toolbar when a preserved selection does not contain the clicked video player", async () => {
+    render(
+      <div>
+        <SelectionToolbar />
+        <div data-testid="selected-element">{MOCK_SELECTED_TEXT}</div>
+        <video data-testid="video-player" />
+      </div>,
+    )
+
+    await clearToolbarState()
+
+    const videoPlayer = screen.getByTestId("video-player")
+    window.getSelection = vi.fn<(...args: any[]) => any>(() => ({
+      toString: vi.fn<(...args: any[]) => any>(() => MOCK_SELECTED_TEXT),
+      getRangeAt: () => ({
+        startContainer: document.body,
+        startOffset: 0,
+        endContainer: document.body,
+        endOffset: 1,
+      }),
+      containsNode: vi.fn<(...args: any[]) => any>((node: Node) => node !== videoPlayer),
+    }))
+
+    await triggerMouseUpWithSelection(videoPlayer)
     expectToolbarHidden()
   })
 
@@ -846,8 +873,28 @@ describe("selectionToolbar - positioning logic", () => {
     await triggerMouseDownAndUp(target, 100, 100, 200, 200)
 
     const slot = dialog.querySelector(`[${MODAL_DIALOG_HOST_SLOT_ATTRIBUTE}]`)
+    const toolbar = shadowRoot.querySelector<HTMLElement>(".absolute.z-2147483647")
     expect(slot?.contains(extensionHost)).toBe(true)
-    expect(shadowRoot.querySelector(".absolute.z-2147483647")).toHaveClass("opacity-100")
+    expect(toolbar).toHaveClass("opacity-100")
+
+    if (!toolbar) {
+      throw new Error("Selection toolbar is missing from the modal host")
+    }
+
+    mockToolbarDimensions(toolbar, 200, 50)
+    selectionRects = [createRect({ left: 100, top: -200, width: 100, height: 100 })]
+
+    await act(async () => {
+      document.body.dispatchEvent(new Event("scroll"))
+      const callbacks = [...rafCallbacks]
+      rafCallbacks = []
+      callbacks.forEach((callback) => callback(0))
+    })
+
+    expect(slot?.contains(extensionHost)).toBe(true)
+    expect(toolbar).toHaveClass("pointer-events-auto", "opacity-100")
+    expect(toolbar).not.toHaveAttribute("inert")
+    expect(toolbar.style.top).toBe("25px")
     matchesSpy.mockRestore()
   })
 
@@ -1241,7 +1288,7 @@ describe("selectionToolbar - positioning logic", () => {
     expect(Number.parseInt(toolbar.style.top, 10)).toBe(initialTop - 80)
   })
 
-  it("should close after the selection leaves the viewport and stay closed", async () => {
+  it("should pin above-viewport selections to the top edge and resume tracking on re-entry", async () => {
     render(
       <div>
         <SelectionToolbar />
@@ -1252,6 +1299,7 @@ describe("selectionToolbar - positioning logic", () => {
 
     await triggerMouseDownAndUp(screen.getByTestId("test-element"), 100, 100, 200, 200)
     const toolbar = getToolbarElement()
+    mockToolbarDimensions(toolbar, 200, 50)
     selectionRects = [createRect({ left: 100, top: -200, width: 100, height: 100 })]
 
     await act(async () => {
@@ -1261,10 +1309,14 @@ describe("selectionToolbar - positioning logic", () => {
       callbacks.forEach((callback) => callback(0))
     })
 
-    expect(toolbar).toHaveClass("pointer-events-none", "opacity-0")
+    expect(toolbar).toHaveClass("pointer-events-auto", "opacity-100")
+    expect(toolbar).not.toHaveAttribute("inert")
+    expect(screen.getByTitle("Close selection toolbar")).toBeEnabled()
+    expect(toolbar.style.left).toBe("200px")
+    expect(toolbar.style.top).toBe("25px")
     expect(screen.getByTestId("selection-session")).toHaveTextContent(MOCK_SELECTED_TEXT)
 
-    selectionRects = [createRect({ left: 100, top: 100, width: 100, height: 100 })]
+    selectionRects = [createRect({ left: 300, top: 300, width: 100, height: 100 })]
     await act(async () => {
       document.body.dispatchEvent(new Event("scroll"))
       const callbacks = [...rafCallbacks]
@@ -1272,10 +1324,41 @@ describe("selectionToolbar - positioning logic", () => {
       callbacks.forEach((callback) => callback(0))
     })
 
-    expect(toolbar).toHaveClass("pointer-events-none", "opacity-0")
+    expect(toolbar).toHaveClass("pointer-events-auto", "opacity-100")
+    expect(toolbar.style.left).toBe("400px")
+    expect(toolbar.style.top).toBe("420px")
+    expect(screen.getByTestId("selection-session")).toHaveTextContent(MOCK_SELECTED_TEXT)
   })
 
-  it("should clear a selection session when its range becomes invalid", async () => {
+  it("should pin a diagonally offscreen selection to the bottom-right corner", async () => {
+    render(
+      <div>
+        <SelectionToolbar />
+        <SelectionSessionProbe />
+        <div data-testid="test-element">Test content</div>
+      </div>,
+    )
+
+    await triggerMouseDownAndUp(screen.getByTestId("test-element"), 100, 100, 200, 200)
+    const toolbar = getToolbarElement()
+    mockToolbarDimensions(toolbar, 200, 50)
+    selectionRects = [createRect({ left: 1400, top: 900, width: 100, height: 100 })]
+
+    await act(async () => {
+      document.body.dispatchEvent(new Event("scroll"))
+      const callbacks = [...rafCallbacks]
+      rafCallbacks = []
+      callbacks.forEach((callback) => callback(0))
+    })
+
+    expect(toolbar).toHaveClass("pointer-events-auto", "opacity-100")
+    expect(toolbar).not.toHaveAttribute("inert")
+    expect(toolbar.style.left).toBe("975px")
+    expect(toolbar.style.top).toBe("725px")
+    expect(screen.getByTestId("selection-session")).toHaveTextContent(MOCK_SELECTED_TEXT)
+  })
+
+  it("should still hide and clear a selection session when its range becomes invalid", async () => {
     render(
       <div>
         <SelectionToolbar />
@@ -1296,6 +1379,7 @@ describe("selectionToolbar - positioning logic", () => {
     })
 
     expect(getToolbarElement()).toHaveClass("pointer-events-none", "opacity-0")
+    expect(getToolbarElement()).toHaveAttribute("inert")
     expect(screen.getByTestId("selection-session")).toHaveTextContent("empty")
   })
 

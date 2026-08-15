@@ -1,5 +1,6 @@
 import type { Config } from "@/types/config/config"
 import type { TransNode } from "@/types/dom"
+import type { TagSetFamily } from "@/utils/constants/dom-rules"
 import {
   BLOCK_ATTRIBUTE,
   BLOCK_CONTENT_CLASS,
@@ -8,13 +9,29 @@ import {
   INLINE_CONTENT_CLASS,
   NOTRANSLATE_CLASS,
 } from "@/utils/constants/dom-labels"
-import {
-  DONT_WALK_AND_TRANSLATE_TAGS,
-  DONT_WALK_BUT_TRANSLATE_TAGS,
-  FORCE_BLOCK_TAGS,
-  MAIN_CONTENT_IGNORE_TAGS,
-} from "@/utils/constants/dom-rules"
+import { DEFAULT_TAG_SETS } from "@/utils/constants/dom-rules"
 import { getEffectiveSiteRule } from "@/utils/site-rules/effective"
+
+const ICON_FONT_FAMILY_NAMES = ["material icons", "material symbols", "font awesome"]
+
+// Ligature icon fonts store glyph names such as `keyboard_return` in text nodes.
+// Translating those names breaks the glyph lookup and exposes the translated text.
+function usesIconFont(fontFamily: string): boolean {
+  // Only the primary family indicates how the element is intended to render;
+  // an icon font appearing later as a fallback is not enough to exclude real text.
+  const [primaryFamily = ""] = fontFamily.split(",")
+  const normalizedFamily = primaryFamily
+    .trim()
+    .replace(/^(["'])(.*)\1$/, "$2")
+    .toLowerCase()
+  return (
+    normalizedFamily === "google symbols" ||
+    normalizedFamily === "fontawesome" ||
+    ICON_FONT_FAMILY_NAMES.some(
+      (name) => normalizedFamily === name || normalizedFamily.startsWith(`${name} `),
+    )
+  )
+}
 
 export function isEditable(element: HTMLElement): boolean {
   const tag = element.tagName
@@ -25,11 +42,11 @@ export function isEditable(element: HTMLElement): boolean {
 
 // shallow means only check the node itself, not the children
 // if a shallow inline node has children are block node, then it's block node rather than inline node
-export function isShallowInlineTransNode(node: Node): boolean {
+export function isShallowInlineTransNode(node: Node, config?: Config): boolean {
   if (isTextNode(node) && node.textContent?.trim()) {
     return true
   } else if (isHTMLElement(node)) {
-    return isShallowInlineHTMLElement(node)
+    return isShallowInlineHTMLElement(node, undefined, config)
   }
   return false
 }
@@ -39,11 +56,12 @@ export function isShallowInlineTransNode(node: Node): boolean {
 function isLargeInitialFloatingLetter(
   element: HTMLElement,
   computedStyle: CSSStyleDeclaration = window.getComputedStyle(element),
+  config?: Config,
 ): boolean {
   return (
     computedStyle.float === "left" &&
     !!element.nextSibling &&
-    isShallowInlineTransNode(element.nextSibling)
+    isShallowInlineTransNode(element.nextSibling, config)
   )
 }
 
@@ -66,19 +84,20 @@ function isInlineDisplay(display: string): boolean {
 export function isShallowInlineHTMLElement(
   element: HTMLElement,
   computedStyle?: CSSStyleDeclaration,
+  config?: Config,
 ): boolean {
   // to prevent too many inline nodes that make <body> as a paragraph node
   if (!element.textContent?.trim()) {
     return false
   }
 
-  if (FORCE_BLOCK_TAGS.has(element.tagName)) {
+  if (getEffectiveTagSet(config, "forceBlockTags").has(element.tagName)) {
     return false
   }
 
   const style = computedStyle ?? window.getComputedStyle(element)
 
-  if (isLargeInitialFloatingLetter(element, style)) {
+  if (isLargeInitialFloatingLetter(element, style, config)) {
     return true
   }
 
@@ -86,11 +105,11 @@ export function isShallowInlineHTMLElement(
 }
 
 // Note: !(inline node) != block node because of `notranslate` class and all cases not in the if else block
-export function isShallowBlockTransNode(node: Node): boolean {
+export function isShallowBlockTransNode(node: Node, config?: Config): boolean {
   if (isTextNode(node)) {
     return false
   } else if (isHTMLElement(node)) {
-    return isShallowBlockHTMLElement(node)
+    return isShallowBlockHTMLElement(node, undefined, config)
   }
   return false
 }
@@ -98,18 +117,35 @@ export function isShallowBlockTransNode(node: Node): boolean {
 export function isShallowBlockHTMLElement(
   element: HTMLElement,
   computedStyle?: CSSStyleDeclaration,
+  config?: Config,
 ): boolean {
-  if (FORCE_BLOCK_TAGS.has(element.tagName)) {
+  if (getEffectiveTagSet(config, "forceBlockTags").has(element.tagName)) {
     return true
   }
 
   const style = computedStyle ?? window.getComputedStyle(element)
 
-  if (isLargeInitialFloatingLetter(element, style)) {
+  if (isLargeInitialFloatingLetter(element, style, config)) {
     return false
   }
 
   return !isInlineDisplay(style.display)
+}
+
+/**
+ * The effective tag set for one family: the site-rule override when a matched
+ * rule touched it, the shipped constant otherwise. `config` is optional so
+ * callers without one (tests, defensive paths) degrade to the defaults instead
+ * of crashing — all production callers pass it.
+ */
+export function getEffectiveTagSet(
+  config: Config | undefined,
+  family: TagSetFamily,
+): ReadonlySet<string> {
+  if (config === undefined) {
+    return DEFAULT_TAG_SETS[family]
+  }
+  return getEffectiveSiteRule(config, window.location.href)[family] ?? DEFAULT_TAG_SETS[family]
 }
 
 export function isSiteRuleExcludedElement(element: HTMLElement, config: Config): boolean {
@@ -131,14 +167,24 @@ export function isSiteRuleExcludedElement(element: HTMLElement, config: Config):
   return true
 }
 
-export function isSiteRuleForceBlockElement(element: HTMLElement, config: Config): boolean {
-  const { forceBlockSelector } = getEffectiveSiteRule(config, window.location.href)
-  return forceBlockSelector !== null && element.matches(forceBlockSelector)
+export function isSiteRuleForceBlockNodeElement(element: HTMLElement, config: Config): boolean {
+  const { forceBlockNodeSelector } = getEffectiveSiteRule(config, window.location.href)
+  return forceBlockNodeSelector !== null && element.matches(forceBlockNodeSelector)
 }
 
-export function isSiteRuleForceInlineElement(element: HTMLElement, config: Config): boolean {
-  const { forceInlineSelector } = getEffectiveSiteRule(config, window.location.href)
-  return forceInlineSelector !== null && element.matches(forceInlineSelector)
+export function isSiteRuleForceBlockStyleElement(element: HTMLElement, config: Config): boolean {
+  const { forceBlockStyleSelector } = getEffectiveSiteRule(config, window.location.href)
+  return forceBlockStyleSelector !== null && element.matches(forceBlockStyleSelector)
+}
+
+export function isSiteRuleForceInlineNodeElement(element: HTMLElement, config: Config): boolean {
+  const { forceInlineNodeSelector } = getEffectiveSiteRule(config, window.location.href)
+  return forceInlineNodeSelector !== null && element.matches(forceInlineNodeSelector)
+}
+
+export function isSiteRuleForceInlineStyleElement(element: HTMLElement, config: Config): boolean {
+  const { forceInlineStyleSelector } = getEffectiveSiteRule(config, window.location.href)
+  return forceInlineStyleSelector !== null && element.matches(forceInlineStyleSelector)
 }
 
 export function isSiteRulePreserveTextElement(element: HTMLElement, config: Config): boolean {
@@ -166,7 +212,7 @@ export function isDontWalkIntoButTranslateAsChildElement(
 ): boolean {
   const dontWalkClass = element.classList.contains(NOTRANSLATE_CLASS)
 
-  const dontWalkTag = DONT_WALK_BUT_TRANSLATE_TAGS.has(element.tagName)
+  const dontWalkTag = getEffectiveTagSet(config, "dontWalkButTranslateTags").has(element.tagName)
 
   const dontWalkPreserveText =
     config !== undefined && isSiteRulePreserveTextElement(element, config)
@@ -196,7 +242,7 @@ export function isDontWalkIntoAndDontTranslateAsChildElement(
   // Cheap structural predicates first; the getComputedStyle check runs last
   // because it can force a style recalculation, and the full-page walk
   // evaluates this predicate for every element (#1881).
-  const dontWalkInvalidTag = DONT_WALK_AND_TRANSLATE_TAGS.has(element.tagName)
+  const dontWalkInvalidTag = getEffectiveTagSet(config, "dontWalkTags").has(element.tagName)
   if (dontWalkInvalidTag) return true
 
   const dontWalkHidden = element.hidden
@@ -208,8 +254,8 @@ export function isDontWalkIntoAndDontTranslateAsChildElement(
   if (dontWalkVisuallyHidden) return true
 
   const dontWalkContent =
-    config.translate.page.range !== "all" &&
-    MAIN_CONTENT_IGNORE_TAGS.has(element.tagName) &&
+    config.pageTranslation.page.range !== "all" &&
+    getEffectiveTagSet(config, "mainContentIgnoreTags").has(element.tagName) &&
     !isInsideContentContainer(element)
   if (dontWalkContent) return true
 
@@ -219,7 +265,11 @@ export function isDontWalkIntoAndDontTranslateAsChildElement(
   if (dontWalkCustomElement) return true
 
   const computedStyle = window.getComputedStyle(element)
-  return computedStyle.display === "none" || computedStyle.visibility === "hidden"
+  return (
+    usesIconFont(computedStyle.fontFamily) ||
+    computedStyle.display === "none" ||
+    computedStyle.visibility === "hidden"
+  )
 }
 
 /**
@@ -245,6 +295,36 @@ export function isBlockTransNode(node: TransNode): boolean {
     return false
   }
   return node.hasAttribute(BLOCK_ATTRIBUTE)
+}
+
+type NaturalTransNodeKind = "block" | "inline" | "none"
+
+// Traversal labels are the effective node classification after site-rule
+// overrides. Keep the pre-override classification separately so translation
+// wrapper layout never reads a Node-only override as a Style instruction.
+// WeakMap avoids exposing another marker attribute to host-page CSS and
+// mutation observers. Marker-only fallback covers retry/tests whose labels
+// predate this module state (for example, an extension reload on a live tab).
+const naturalTransNodeKinds = new WeakMap<HTMLElement, NaturalTransNodeKind>()
+
+export function setNaturalTransNodeKind(element: HTMLElement, kind: NaturalTransNodeKind): void {
+  naturalTransNodeKinds.set(element, kind)
+}
+
+export function isNaturalInlineTransNode(node: TransNode): boolean {
+  if (isTextNode(node)) {
+    return true
+  }
+  const kind = naturalTransNodeKinds.get(node)
+  return kind === undefined ? isInlineTransNode(node) : kind === "inline"
+}
+
+export function isNaturalBlockTransNode(node: TransNode): boolean {
+  if (isTextNode(node)) {
+    return false
+  }
+  const kind = naturalTransNodeKinds.get(node)
+  return kind === undefined ? isBlockTransNode(node) : kind === "block"
 }
 
 /**

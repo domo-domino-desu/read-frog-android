@@ -2,20 +2,23 @@ import type { JSONValue } from "ai"
 import type { RefObject } from "react"
 import type { SelectionToolbarCustomActionRequestSlice } from "../atoms"
 import type { SelectionToolbarInlineError } from "../inline-error"
-import type { AnalyticsSurface } from "@/types/analytics"
+import type { AnalyticsSurface, FeatureProviderAnalytics } from "@/types/analytics"
 import type {
   BackgroundStructuredObjectStreamSnapshot,
   ThinkingSnapshot,
 } from "@/types/background-stream"
 import type { AISDKReasoning } from "@/types/config/provider"
 import type { SelectionToolbarCustomAction } from "@/types/config/selection-toolbar"
+import type { HostedAiModelTier } from "@/utils/constants/provider-ids"
 import type { CachedWebPageContext } from "@/utils/host/translate/webpage-context"
 import type { CustomActionProviderRef } from "@/utils/providers/provider-registry"
 import { LANG_CODE_TO_EN_NAME } from "@read-frog/definitions"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ANALYTICS_FEATURE } from "@/types/analytics"
 import { createFeatureUsageContext, trackFeatureUsed } from "@/utils/analytics"
+import { classifyResolvedProvider } from "@/utils/analytics-provider"
 import { streamBackgroundStructuredObject } from "@/utils/content-script/background-stream-client"
+import { getRandomUUID } from "@/utils/crypto-polyfill"
 import { getOrCreateWebPageContext } from "@/utils/host/translate/webpage-context"
 import { resolveModelId } from "@/utils/providers/model-id"
 import { getProviderOptionsWithOverride } from "@/utils/providers/options"
@@ -54,7 +57,7 @@ interface ResolvedWebPageContext {
 }
 
 interface CustomActionExecutionRequest {
-  analytics: {
+  analytics: FeatureProviderAnalytics & {
     actionId: string
     actionName: string
     surface: AnalyticsSurface
@@ -67,6 +70,7 @@ interface CustomActionExecutionRequest {
     }>
     prompt: string
     providerId: string
+    modelTier?: HostedAiModelTier
     providerOptions?: Record<string, Record<string, JSONValue>>
     reasoning?: AISDKReasoning
     instructions: string
@@ -74,7 +78,23 @@ interface CustomActionExecutionRequest {
   }
 }
 
+const FOLLOW_STREAM_BOTTOM_THRESHOLD = 8
+
 function scrollSelectionPopoverBodyToBottom(ref: RefObject<HTMLDivElement | null>) {
+  const node = ref.current
+  if (!node) {
+    return
+  }
+
+  // Measured before the chunk renders: a reader who scrolled up to reread
+  // earlier output must not be yanked back down, and measuring after the
+  // append would misread "was at the bottom" as "far from it" whenever a
+  // chunk adds more height than the threshold.
+  const distanceToBottom = node.scrollHeight - node.scrollTop - node.clientHeight
+  if (distanceToBottom > FOLLOW_STREAM_BOTTOM_THRESHOLD) {
+    return
+  }
+
   requestAnimationFrame(() => {
     if (ref.current) {
       ref.current.scrollTop = ref.current.scrollHeight
@@ -243,6 +263,7 @@ function buildCustomActionExecutionRequest({
       actionId: action.id,
       actionName: action.name,
       surface: analyticsSurface,
+      ...classifyResolvedProvider(provider),
     },
     key: stringifyExecutionRequestKey({
       actionId: action.id,
@@ -266,6 +287,7 @@ function buildCustomActionExecutionRequest({
     }),
     payload: {
       providerId: provider.id,
+      modelTier: provider.kind === "system" ? provider.modelTier : undefined,
       instructions: systemPrompt,
       prompt,
       outputSchema,
@@ -344,6 +366,10 @@ export function useCustomActionExecution({
         action_name: request.analytics.actionName,
       },
     )
+    const providerAnalytics: FeatureProviderAnalytics = {
+      provider: request.analytics.provider,
+      backend_kind: request.analytics.backend_kind,
+    }
 
     const run = async () => {
       setIsRunning(true)
@@ -355,18 +381,24 @@ export function useCustomActionExecution({
       })
 
       try {
-        const finalResult = await streamBackgroundStructuredObject(request.payload, {
-          signal: abortController.signal,
-          onChunk: (partial: BackgroundStructuredObjectStreamSnapshot) => {
-            if (isCancelled) {
-              return
-            }
-
-            setResult(partial.output)
-            setThinking(partial.thinking)
-            scrollSelectionPopoverBodyToBottom(bodyRefRef.current)
+        const finalResult = await streamBackgroundStructuredObject(
+          {
+            ...request.payload,
+            requestId: getRandomUUID(),
           },
-        })
+          {
+            signal: abortController.signal,
+            onChunk: (partial: BackgroundStructuredObjectStreamSnapshot) => {
+              if (isCancelled) {
+                return
+              }
+
+              setResult(partial.output)
+              setThinking(partial.thinking)
+              scrollSelectionPopoverBodyToBottom(bodyRefRef.current)
+            },
+          },
+        )
 
         if (isCancelled) {
           return
@@ -376,6 +408,7 @@ export function useCustomActionExecution({
         setThinking(finalResult.thinking)
         void trackFeatureUsed({
           ...analyticsContext,
+          ...providerAnalytics,
           outcome: "success",
         })
       } catch (caughtError) {
@@ -391,6 +424,7 @@ export function useCustomActionExecution({
         setError(createSelectionToolbarRuntimeError("customAction", caughtError))
         void trackFeatureUsed({
           ...analyticsContext,
+          ...providerAnalytics,
           outcome: "failure",
         })
       } finally {

@@ -1,6 +1,10 @@
+import { HostedAiOutputFieldTypeSchema } from "@read-frog/api-contract"
 import { z } from "zod"
 
-export const selectionToolbarCustomActionOutputTypeSchema = z.enum(["string", "number"])
+// The contract's field-type enum is the source of truth: these values ride the
+// wire to hostedAi.customAction unchanged. Only the enum is shared — length
+// caps and strictness stay hosted-only so BYOK actions are not constrained.
+export const selectionToolbarCustomActionOutputTypeSchema = HostedAiOutputFieldTypeSchema
 
 export const selectionToolbarCustomActionOutputFieldSchema = z.object({
   id: z.string().nonempty(),
@@ -29,6 +33,16 @@ export const selectionToolbarCustomActionNotebaseConnectionSchema = z.object({
   notebaseNameSnapshot: z.string().trim().min(1),
   connectedAccount: selectionToolbarCustomActionNotebaseAccountSchema,
   mappings: z.array(selectionToolbarCustomActionNotebaseMappingSchema),
+})
+
+export const selectionToolbarBuiltInActionStateSchema = z.object({
+  enabled: z.boolean(),
+  providerId: z.string().nonempty(),
+  notebaseConnection: selectionToolbarCustomActionNotebaseConnectionSchema.optional(),
+})
+
+export const selectionToolbarBuiltInActionsSchema = z.object({
+  dictionary: selectionToolbarBuiltInActionStateSchema,
 })
 
 export const selectionToolbarCustomActionSchema = z
@@ -112,6 +126,14 @@ export const selectionToolbarCustomActionsSchema = z
   .superRefine((actions, ctx) => {
     const idSet = new Set<string>()
     actions.forEach((action, index) => {
+      if (action.id === "default-dictionary") {
+        ctx.addIssue({
+          code: "custom",
+          message: 'Action id "default-dictionary" is reserved for the built-in Dictionary.',
+          path: [index, "id"],
+        })
+      }
+
       if (idSet.has(action.id)) {
         ctx.addIssue({
           code: "custom",
@@ -151,4 +173,8 @@ export type SelectionToolbarCustomActionNotebaseAccount = z.infer<
 export type SelectionToolbarCustomActionNotebaseConnection = z.infer<
   typeof selectionToolbarCustomActionNotebaseConnectionSchema
 >
+export type SelectionToolbarBuiltInActionState = z.infer<
+  typeof selectionToolbarBuiltInActionStateSchema
+>
+export type SelectionToolbarBuiltInActions = z.infer<typeof selectionToolbarBuiltInActionsSchema>
 export type SelectionToolbarCustomAction = z.infer<typeof selectionToolbarCustomActionSchema>
