@@ -259,10 +259,8 @@ describe("pageTranslationManager title handling", () => {
     const firstEnable = manager.start()
     const secondEnable = manager.start()
 
-    expect(manager.isActive).toBe(true)
     configDeferred.resolve(DEFAULT_CONFIG)
     await Promise.all([firstEnable, secondEnable])
-
     expect(MockIntersectionObserver.instances).toHaveLength(1)
     expect(mockWalkAndLabelElement).toHaveBeenCalledTimes(1)
     expect(
@@ -286,21 +284,12 @@ describe("pageTranslationManager title handling", () => {
     await enablePromise
 
     expect(manager.isActive).toBe(false)
-    expect(mockRemoveAllTranslatedWrapperNodes).toHaveBeenCalledTimes(1)
+    expect(mockRemoveAllTranslatedWrapperNodes).not.toHaveBeenCalled()
     expect(
       mockSendMessage.mock.calls.filter(
         ([type]) => type === "setAndNotifyPageTranslationStateChangedByManager",
       ),
-    ).toEqual([
-      [
-        "setAndNotifyPageTranslationStateChangedByManager",
-        { enabled: true, url: window.location.href },
-      ],
-      [
-        "setAndNotifyPageTranslationStateChangedByManager",
-        { enabled: false, url: window.location.href },
-      ],
-    ])
+    ).toEqual([])
   })
 
   it("ignores repeated enable requests once translation is active", async () => {

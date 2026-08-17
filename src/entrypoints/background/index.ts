@@ -8,7 +8,7 @@ import { initI18n, setUiLanguage } from "@/utils/i18n"
 import { logger } from "@/utils/logger"
 import { onMessage } from "@/utils/message"
 import { openOptionsPage } from "@/utils/navigation"
-
+import { supportsContextMenu } from "@/utils/platform"
 import { SessionCacheGroupRegistry } from "@/utils/session-cache/session-cache-group-registry"
 import { runAiSegmentSubtitles } from "./ai-segmentation"
 import { setupAnalyticsMessageHandlers } from "./analytics"
@@ -35,6 +35,19 @@ import { setUpSubtitlesTranslationQueue, setUpWebPageTranslationQueue } from "./
 import { translationMessage } from "./translation-signal"
 import { setupTTSPlaybackMessageHandlers } from "./tts-playback"
 import { setupUninstallSurvey } from "./uninstall-survey"
+
+interface OptionalContextMenuDependencies {
+  registerContextMenuListeners: () => void
+  supportsContextMenu: boolean
+}
+
+export function setupOptionalContextMenu({
+  registerContextMenuListeners: registerListeners,
+  supportsContextMenu: contextMenuSupported,
+}: OptionalContextMenuDependencies) {
+  if (!contextMenuSupported) return
+  registerListeners()
+}
 
 
 export default defineBackground({
@@ -107,7 +120,10 @@ export default defineBackground({
 
     // Register context menu listeners synchronously
     // This ensures listeners are registered before Chrome completes initialization
-    registerContextMenuListeners()
+    setupOptionalContextMenu({
+      registerContextMenuListeners,
+      supportsContextMenu,
+    })
 
     // Initialize action icons asynchronously
     void initializeActionIcons()
