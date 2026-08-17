@@ -14,12 +14,12 @@ const {
   mockTranslateTextForPageTitle,
   mockTranslateWalkedElement,
   mockValidateTranslationConfigAndToast,
-  mockWalkAndLabelElement,
+  mockWalkAndLabelElementChunked,
 } = vi.hoisted(() => ({
   mockGetDetectedCodeFromStorage: vi.fn<(...args: any[]) => any>(),
   mockGetLocalConfig: vi.fn<(...args: any[]) => any>(),
   mockDeepQueryTopLevelSelector: vi.fn<(...args: any[]) => any>(),
-  mockWalkAndLabelElement: vi.fn<(...args: any[]) => any>(),
+  mockWalkAndLabelElementChunked: vi.fn<(...args: any[]) => any>(),
   mockRemoveAllTranslatedWrapperNodes: vi.fn<(...args: any[]) => any>(),
   mockTranslateWalkedElement: vi.fn<(...args: any[]) => any>(),
   mockTranslateTextForPageTitle: vi.fn<(...args: any[]) => any>(),
@@ -43,7 +43,8 @@ vi.mock("@/utils/host/dom/filter", () => ({
     .mockReturnValue(false),
   isDontWalkIntoButTranslateAsChildElement: vi.fn<(...args: any[]) => any>().mockReturnValue(false),
   isWalkBlockedElement: vi.fn<(...args: any[]) => any>().mockReturnValue(false),
-  isHTMLElement: (node: unknown) => node instanceof HTMLElement,
+  isHTMLElement: (node: unknown) =>
+    typeof HTMLElement !== "undefined" && node instanceof HTMLElement,
 }))
 
 vi.mock("@/utils/host/dom/find", () => ({
@@ -51,9 +52,9 @@ vi.mock("@/utils/host/dom/find", () => ({
 }))
 
 vi.mock("@/utils/host/dom/traversal", () => ({
-  walkAndLabelElement: mockWalkAndLabelElement,
+  walkAndLabelElement: vi.fn<(...args: any[]) => any>(),
   walkAndLabelElementChunked: vi
-    .fn<(...args: any[]) => any>()
+    .mockImplementation(mockWalkAndLabelElementChunked)
     .mockResolvedValue({ forceBlock: false, isInlineNode: false }),
 }))
 
@@ -262,7 +263,7 @@ describe("pageTranslationManager title handling", () => {
     configDeferred.resolve(DEFAULT_CONFIG)
     await Promise.all([firstEnable, secondEnable])
     expect(MockIntersectionObserver.instances).toHaveLength(1)
-    expect(mockWalkAndLabelElement).toHaveBeenCalledTimes(1)
+    expect(mockWalkAndLabelElementChunked).toHaveBeenCalledTimes(1)
     expect(
       mockSendMessage.mock.calls.filter(
         ([type, payload]) =>

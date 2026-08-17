@@ -12,6 +12,7 @@ import {
 import { i18n } from "@/utils/i18n"
 import { sendMessage } from "@/utils/message"
 import { supportsContextMenu } from "@/utils/platform"
+import { getSelectionToolbarActions } from "@/utils/custom-actions"
 import { ensureInitializedConfig } from "./config"
 import { getPageTranslationEnabled, setPageTranslationEnabled } from "./page-translation-state"
 
@@ -103,7 +104,7 @@ async function updateContextMenuItems(config: Config) {
   await browser.contextMenus.removeAll()
 
   const { enabled: translateEnabled } = config.contextMenu
-  const enabledCustomActions = config.selectionToolbar.customActions.filter(
+  const enabledCustomActions = getSelectionToolbarActions(config.selectionToolbar).filter(
     (action) => action.enabled !== false,
   )
 
@@ -186,7 +187,7 @@ async function handleContextMenuClick(
   }
 
   if (info.menuItemId === MENU_ID_TRANSLATE) {
-    await handleTranslateClick(tab.id)
+    await handleTranslateClick(tab.id, tab.url)
     return
   }
 
@@ -216,14 +217,14 @@ async function handleContextMenuClick(
 /**
  * Handle translate menu click - toggle page translation
  */
-async function handleTranslateClick(tabId: number) {
+async function handleTranslateClick(tabId: number, tabUrl?: string) {
   if (!supportsContextMenu) return
 
   const isCurrentlyTranslated = await getPageTranslationEnabled(tabId)
   const newState = !isCurrentlyTranslated
 
   if (!newState) {
-    await setPageTranslationEnabled(tabId, false)
+    await setPageTranslationEnabled(tabId, false, tabUrl, true)
     void sendMessage("notifyTranslationStateChanged", { enabled: false }, tabId)
   }
 
