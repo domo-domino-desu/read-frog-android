@@ -256,8 +256,8 @@ describe("pageTranslationManager title handling", () => {
     mockGetLocalConfig.mockImplementationOnce(() => configDeferred.promise)
 
     const manager = new PageTranslationManager()
-    const firstEnable = manager.setEnabled(true)
-    const secondEnable = manager.setEnabled(true)
+    const firstEnable = manager.start()
+    const secondEnable = manager.start()
 
     expect(manager.isActive).toBe(true)
     configDeferred.resolve(DEFAULT_CONFIG)
@@ -279,11 +279,11 @@ describe("pageTranslationManager title handling", () => {
     mockGetLocalConfig.mockImplementationOnce(() => configDeferred.promise)
 
     const manager = new PageTranslationManager()
-    const enablePromise = manager.setEnabled(true)
-    const disablePromise = manager.setEnabled(false)
+    const enablePromise = manager.start()
+    manager.stop()
 
     configDeferred.resolve(DEFAULT_CONFIG)
-    await Promise.all([enablePromise, disablePromise])
+    await enablePromise
 
     expect(manager.isActive).toBe(false)
     expect(mockRemoveAllTranslatedWrapperNodes).toHaveBeenCalledTimes(1)
@@ -306,8 +306,8 @@ describe("pageTranslationManager title handling", () => {
   it("ignores repeated enable requests once translation is active", async () => {
     const manager = new PageTranslationManager()
 
-    await manager.setEnabled(true)
-    await manager.setEnabled(true)
+    await manager.start()
+    await manager.start()
 
     expect(MockIntersectionObserver.instances).toHaveLength(1)
     expect(

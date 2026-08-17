@@ -15,11 +15,11 @@ import {
  */
 export async function bindTranslationShortcutKey(pageTranslationManager: PageTranslationManager) {
   const config = await getLocalConfig()
-  if (!config || isPageTranslationShortcutEmpty(config.translate.page.shortcut)) {
+  if (!config || isPageTranslationShortcutEmpty(config.pageTranslation.page.shortcut)) {
     return () => {}
   }
 
-  const shortcut = config.translate.page.shortcut
+  const shortcut = config.pageTranslation.page.shortcut
   if (!isValidConfiguredPageTranslationShortcut(shortcut)) {
     return () => {}
   }
@@ -27,10 +27,13 @@ export async function bindTranslationShortcutKey(pageTranslationManager: PageTra
   const registration = HotkeyManager.getInstance().register(
     shortcut as Hotkey,
     () => {
-      void pageTranslationManager.setEnabled(
-        !pageTranslationManager.isActive,
-        createFeatureUsageContext(ANALYTICS_FEATURE.PAGE_TRANSLATION, ANALYTICS_SURFACE.SHORTCUT),
-      )
+      if (pageTranslationManager.isActive) {
+        pageTranslationManager.stop({ userInitiated: true })
+      } else {
+        void pageTranslationManager.start(
+          createFeatureUsageContext(ANALYTICS_FEATURE.PAGE_TRANSLATION, ANALYTICS_SURFACE.SHORTCUT),
+        )
+      }
     },
     {
       ignoreInputs: true,

@@ -8,14 +8,10 @@ import { initI18n, setUiLanguage } from "@/utils/i18n"
 import { logger } from "@/utils/logger"
 import { onMessage } from "@/utils/message"
 import { openOptionsPage } from "@/utils/navigation"
-import { supportsContextMenu } from "@/utils/platform"
+
 import { SessionCacheGroupRegistry } from "@/utils/session-cache/session-cache-group-registry"
 import { runAiSegmentSubtitles } from "./ai-segmentation"
-import {
-  enrollPromptExperimentInstall,
-  preloadPromptExperimentFeatureFlags,
-  setupAnalyticsMessageHandlers,
-} from "./analytics"
+import { setupAnalyticsMessageHandlers } from "./analytics"
 import { dispatchBackgroundStreamPort } from "./background-stream"
 import { initializeActionIcons, registerActionIconListeners } from "./browser-action-icon"
 import { ensureInitializedConfig } from "./config"
@@ -40,18 +36,6 @@ import { translationMessage } from "./translation-signal"
 import { setupTTSPlaybackMessageHandlers } from "./tts-playback"
 import { setupUninstallSurvey } from "./uninstall-survey"
 
-interface OptionalContextMenuDependencies {
-  registerContextMenuListeners: () => void
-  supportsContextMenu: boolean
-}
-
-export function setupOptionalContextMenu({
-  registerContextMenuListeners: registerListeners,
-  supportsContextMenu: contextMenuSupported,
-}: OptionalContextMenuDependencies) {
-  if (!contextMenuSupported) return
-  registerListeners()
-}
 
 export default defineBackground({
   type: "module",
@@ -63,7 +47,7 @@ export default defineBackground({
 
       // Open tutorial page when extension is installed
       if (details.reason === "install") {
-        await enrollPromptExperimentInstall()
+
         await browser.tabs.create({
           url: `${env.WXT_WEBSITE_URL}/guide/step-1`,
         })
@@ -117,16 +101,13 @@ export default defineBackground({
 
     newUserGuide()
     setupAnalyticsMessageHandlers()
-    void preloadPromptExperimentFeatureFlags()
+
     translationMessage()
     registerActionIconListeners()
 
     // Register context menu listeners synchronously
     // This ensures listeners are registered before Chrome completes initialization
-    setupOptionalContextMenu({
-      registerContextMenuListeners,
-      supportsContextMenu,
-    })
+    registerContextMenuListeners()
 
     // Initialize action icons asynchronously
     void initializeActionIcons()
@@ -157,7 +138,7 @@ export default defineBackground({
       const config = await ensureInitializedConfig()
       currentUiLanguage = config?.uiLanguage ?? "auto"
       await initI18n(currentUiLanguage)
-      if (supportsContextMenu) void initializeContextMenu()
+      void initializeContextMenu()
       await setupUninstallSurvey()
     })()
 

@@ -7,6 +7,7 @@ import { logger } from "@/utils/logger"
 import { onMessage, sendMessage } from "@/utils/message"
 import { clearEffectiveSiteControlUrl } from "@/utils/site-control"
 import { areSamePageTranslationOrigin } from "@/utils/url"
+import { bindTranslationHubShortcutKey } from "./bind-translation-hub-shortcut"
 import { setupUrlChangeListener } from "./listen"
 import { mountHostToast } from "./mount-host-toast"
 import { bindTranslationModeShortcutKey } from "./translation-control/bind-translation-mode-shortcut"
@@ -27,7 +28,7 @@ export async function bootstrapHostContent(
   const teardownNodeTranslation = registerNodeTranslationTriggers()
 
   const preloadConfig =
-    initialConfig?.translate.page.preload ?? DEFAULT_CONFIG.translate.page.preload
+    initialConfig?.pageTranslation.page.preload ?? DEFAULT_CONFIG.pageTranslation.page.preload
   const manager = new PageTranslationManager({
     root: null,
     rootMargin: `${preloadConfig.margin}px`,
@@ -39,6 +40,7 @@ export async function bootstrapHostContent(
   const cleanupTranslationShortcut = await bindTranslationShortcutKey(manager)
 
   const cleanupTranslationModeShortcut = await bindTranslationModeShortcutKey()
+  const cleanupTranslationHubShortcut = await bindTranslationHubShortcutKey()
 
   const detectAndReportPageLanguage = async (url: string) => {
     const { detectedCodeOrUnd } = await detectPageLanguageLightweight()
@@ -54,7 +56,7 @@ export async function bootstrapHostContent(
     logger.error("Failed to check translation state:", error)
   }
   if (translationEnabled) {
-    void manager.setEnabled(true)
+    void manager.start()
   }
 
   const handleUrlChange = async (from: string, to: string) => {
@@ -62,9 +64,9 @@ export async function bootstrapHostContent(
       logger.info("URL changed from", from, "to", to)
       if (manager.isActive) {
         if (areSamePageTranslationOrigin(from, to)) {
-          await manager.restart()
+          await manager.refreshSiteRuleCSS()
         } else {
-          await manager.setEnabled(false)
+          manager.stop()
         }
       }
       // Only the top frame should detect and set language to avoid race conditions from iframes
@@ -83,7 +85,12 @@ export async function bootstrapHostContent(
   // Listen for translation state changes from background
   const cleanupTranslationStateListener = onMessage("askManagerToTogglePageTranslation", (msg) => {
     const { enabled, analyticsContext } = msg.data
-    return manager.setEnabled(enabled, window === window.top ? analyticsContext : undefined)
+    if (enabled === manager.isActive) return
+    if (enabled) {
+      void manager.start(window === window.top ? analyticsContext : undefined)
+    } else {
+      manager.stop({ userInitiated: true })
+    }
   })
 
   const cleanupFrameTranslationStateListener =
@@ -91,7 +98,12 @@ export async function bootstrapHostContent(
       ? () => {}
       : onMessage("notifyTranslationStateChanged", (msg) => {
           const { enabled } = msg.data
-          return manager.setEnabled(enabled)
+          if (enabled === manager.isActive) return
+          if (enabled) {
+            void manager.start()
+          } else {
+            manager.stop()
+          }
         })
 
   const cleanupDetectedLanguageRefreshListener =
@@ -108,6 +120,8 @@ export async function bootstrapHostContent(
     cleanupPageTranslationTriggers()
     cleanupTranslationShortcut()
     cleanupTranslationModeShortcut()
+    cleanupTranslationHubShortcut()
+
     cleanupTranslationStateListener()
     cleanupFrameTranslationStateListener()
     cleanupDetectedLanguageRefreshListener()

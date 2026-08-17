@@ -20,10 +20,9 @@ const {
   messageHandlers: new Map<string, (msg?: any) => any>(),
   managerInstances: [] as Array<{
     isActive: boolean
-    setEnabled: ReturnType<typeof vi.fn>
     start: ReturnType<typeof vi.fn>
     stop: ReturnType<typeof vi.fn>
-    restart: ReturnType<typeof vi.fn>
+    refreshSiteRuleCSS: ReturnType<typeof vi.fn>
     registerPageTranslationTriggers: ReturnType<typeof vi.fn>
   }>,
   mockBindTranslationShortcutKey: vi.fn<(...args: any[]) => any>(),
@@ -81,9 +80,6 @@ vi.mock("../translation-control/node-translation", () => ({
 vi.mock("../translation-control/page-translation", () => ({
   PageTranslationManager: class {
     isActive = false
-    setEnabled = vi.fn<(...args: any[]) => any>(async (enabled: boolean) => {
-      this.isActive = enabled
-    })
     start = vi.fn<(...args: any[]) => any>(async () => {
       this.isActive = true
     })
@@ -92,9 +88,7 @@ vi.mock("../translation-control/page-translation", () => ({
       this.isActive = false
     })
 
-    restart = vi.fn<(...args: any[]) => any>(async () => {
-      this.isActive = true
-    })
+    refreshSiteRuleCSS = vi.fn<(...args: any[]) => any>(async () => {})
 
     registerPageTranslationTriggers = vi.fn<(...args: any[]) => any>(() =>
       vi.fn<(...args: any[]) => any>(),
@@ -172,8 +166,8 @@ describe("bootstrapHostContent URL changes", () => {
     )
     await flushAsyncWork()
 
-    expect(manager.setEnabled).toHaveBeenCalledWith(true)
-    expect(manager.restart).toHaveBeenCalledTimes(1)
+    expect(manager.start).toHaveBeenCalledWith()
+    expect(manager.refreshSiteRuleCSS).toHaveBeenCalledTimes(1)
     expect(manager.stop).not.toHaveBeenCalled()
     expect(mockSendMessage).toHaveBeenCalledWith("reportDetectedPageLanguage", {
       url: "https://example.com/articles/2?ref=nav#comments",
@@ -199,7 +193,7 @@ describe("bootstrapHostContent URL changes", () => {
     await flushAsyncWork()
 
     expect(manager.start).not.toHaveBeenCalled()
-    expect(manager.restart).not.toHaveBeenCalled()
+    expect(manager.refreshSiteRuleCSS).not.toHaveBeenCalled()
     expect(manager.stop).not.toHaveBeenCalled()
     expect(mockSendMessage).toHaveBeenCalledWith("reportDetectedPageLanguage", {
       url: "https://example.com/articles/2",

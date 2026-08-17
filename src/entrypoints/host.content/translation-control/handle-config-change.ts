@@ -14,7 +14,7 @@ export function handleTranslationModeChange(
     newConfig && oldConfig && newConfig.pageTranslation.mode !== oldConfig.pageTranslation.mode
 
   if (modeChanged && manager.isActive) {
-    void manager.setEnabled(false)
-    void manager.setEnabled(true)
+    manager.stop()
+    void manager.start()
   }
 }
