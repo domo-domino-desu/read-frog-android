@@ -14,12 +14,16 @@ const {
   mockTranslateTextForPageTitle,
   mockTranslateWalkedElement,
   mockValidateTranslationConfigAndToast,
+  mockWalkAndLabelElement,
   mockWalkAndLabelElementChunked,
 } = vi.hoisted(() => ({
   mockGetDetectedCodeFromStorage: vi.fn<(...args: any[]) => any>(),
   mockGetLocalConfig: vi.fn<(...args: any[]) => any>(),
   mockDeepQueryTopLevelSelector: vi.fn<(...args: any[]) => any>(),
-  mockWalkAndLabelElementChunked: vi.fn<(...args: any[]) => any>(),
+  mockWalkAndLabelElement: vi.fn<(...args: any[]) => any>(),
+  mockWalkAndLabelElementChunked: vi
+    .fn<(...args: any[]) => any>()
+    .mockResolvedValue({ forceBlock: false, isInlineNode: false }),
   mockRemoveAllTranslatedWrapperNodes: vi.fn<(...args: any[]) => any>(),
   mockTranslateWalkedElement: vi.fn<(...args: any[]) => any>(),
   mockTranslateTextForPageTitle: vi.fn<(...args: any[]) => any>(),
@@ -54,9 +58,7 @@ vi.mock("@/utils/host/dom/find", () => ({
 vi.mock("@/utils/host/dom/traversal", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/utils/host/dom/traversal")>()),
   walkAndLabelElement: mockWalkAndLabelElement,
-  walkAndLabelElementChunked: vi
-    .mockImplementation(mockWalkAndLabelElementChunked)
-    .mockResolvedValue({ forceBlock: false, isInlineNode: false }),
+  walkAndLabelElementChunked: mockWalkAndLabelElementChunked,
 }))
 
 vi.mock("@/utils/host/translate/node-manipulation", () => ({
