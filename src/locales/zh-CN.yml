@@ -246,7 +246,7 @@ options:
         anthropic: 以安全性和推理能力著称的 Claude 模型
         xai: 马斯克的 AI 公司，提供具有实时数据访问能力的 Grok 模型
         atlascloud: 统一的 OpenAI 兼容模型平台，提供 DeepSeek、Kimi、Qwen、豆包、GLM 等较新模型
-        jalapenocloud: 顶尖大模型团队都在用的企业级 AI，现在你也能用
+        jalapenocloud: 顶尖团队都在用的企业级 AI，现在为你而来！
         siliconflow: 面向中国和国际模型的高性能推理平台
         tensdaq: 革命性竞价 AI MaaS 平台，价格由市场供需决定，告别高成本固定定价
         openaiCompatible: 连接兼容 OpenAI Chat Completions API 的自定义端点
@@ -1184,6 +1184,7 @@ languageDetection:
 translation:
   sameLanguage: 源语言和目标语言必须不同
   autoModeSameLanguage: 检测到的语言 '$1' 与目标语言相同
+  extensionContextInvalidated: 扩展已更新，请刷新此页面后重试。
 speak:
   fetchingAudio: 正在获取音频...
   playingAudio: 正在播放音频...
@@ -1248,6 +1249,7 @@ shortcutKeySelector:
   placeholder: 请输入快捷键
 subtitles:
   loadingAiSubtitles: 正在加载 AI 字幕中（预计 3 分钟）
+  aiSubtitlesHint: 通过先进 AI 识别语音生成准确字幕，无官方字幕时依然可用。
   requestAiSubtitles: 请求 AI 字幕
   usingAiSubtitles: 正在使用 AI 字幕中
   toggle:

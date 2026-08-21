@@ -245,7 +245,7 @@ options:
         anthropic: Güvenlik ve akıl yürütme mükemmelliğiyle tanınan Claude modelleri
         xai: Gerçek zamanlı veri erişimli Grok modelleri sunan Elon Musk'ın AI şirketi
         atlascloud: DeepSeek, Kimi, Qwen, Doubao ve GLM gibi yeni modellere OpenAI uyumlu birleşik erişim platformu
-        jalapenocloud: Önde gelen LLM geliştiricilerinin güvendiği kurumsal düzeyde yapay zekâ, artık sizin için
+        jalapenocloud: En iyi ekiplerin kullandığı kurumsal düzeyde yapay zekâ, şimdi sizin için!
         siliconflow: Çin ve uluslararası modeller için yüksek performanslı çıkarım platformu
         tensdaq: Yüksek maliyetli sabit fiyatlandırmayı ortadan kaldıran pazar odaklı fiyatlandırma ile devrimci açık artırma AI MaaS platformu
         openaiCompatible: OpenAI Chat Completions API ile uyumlu özel bir uç noktaya bağlanın
@@ -1068,6 +1068,7 @@ languageDetection:
 translation:
   sameLanguage: Kaynak ve hedef diller farklı olmalıdır
   autoModeSameLanguage: Algılanan dil '$1' hedef dille aynı
+  extensionContextInvalidated: Uzantı güncellendi. Bu sayfayı yenileyip tekrar deneyin.
 speak:
   fetchingAudio: Ses oluşturuluyor...
   playingAudio: Ses çalınıyor...
@@ -1132,6 +1133,7 @@ shortcutKeySelector:
   placeholder: Lütfen kısayolu girin
 subtitles:
   loadingAiSubtitles: Yapay zeka altyazıları yükleniyor… (tahmini 3 dk)
+  aiSubtitlesHint: Gelişmiş yapay zeka ses tanıma ile doğru altyazılar oluşturulur; resmi altyazı olmadığında da kullanılabilir.
   requestAiSubtitles: Yapay zeka altyazısı iste
   usingAiSubtitles: Yapay zeka altyazısı kullanılıyor
   toggle:

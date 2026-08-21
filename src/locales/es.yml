@@ -246,7 +246,7 @@ options:
         anthropic: Modelos Claude conocidos por su seguridad y excelente razonamiento
         xai: Empresa de AI de Elon Musk que ofrece modelos Grok con acceso a datos en tiempo real
         atlascloud: Plataforma unificada compatible con OpenAI para modelos recientes como DeepSeek, Kimi, Qwen, Doubao y GLM
-        jalapenocloud: IA de nivel empresarial en la que confían los mejores creadores de LLM, ahora a tu alcance
+        jalapenocloud: IA de nivel empresarial que utilizan los mejores equipos, ¡ahora para ti!
         siliconflow: Plataforma de inferencia de alto rendimiento para modelos chinos e internacionales
         tensdaq: Plataforma revolucionaria de pujas AI MaaS con precios impulsados por el mercado, que elimina los altos precios fijos
         openaiCompatible: Conecta un endpoint personalizado compatible con la API Chat Completions de OpenAI
@@ -1184,6 +1184,7 @@ languageDetection:
 translation:
   sameLanguage: Los idiomas de origen y destino deben ser diferentes
   autoModeSameLanguage: El idioma detectado '$1' es el mismo que el idioma de destino
+  extensionContextInvalidated: La extensión se actualizó. Actualiza esta página e inténtalo de nuevo.
 speak:
   fetchingAudio: Generando audio...
   playingAudio: Reproduciendo audio...
@@ -1248,6 +1249,7 @@ shortcutKeySelector:
   placeholder: Introduce el atajo
 subtitles:
   loadingAiSubtitles: Cargando subtítulos con IA… (estimado 3 min)
+  aiSubtitlesHint: Subtítulos precisos generados por reconocimiento de voz con IA avanzada, disponibles incluso sin subtítulos oficiales.
   requestAiSubtitles: Solicitar subtítulos con IA
   usingAiSubtitles: Usando subtítulos con IA
   toggle:

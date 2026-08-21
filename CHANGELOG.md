@@ -1,5 +1,65 @@
 # @read-frog/extension
 
+## 1.46.4
+
+### Patch Changes
+
+- [#2106](https://github.com/mengxi-ream/read-frog/pull/2106) [`df8f243`](https://github.com/mengxi-ream/read-frog/commit/df8f243763e8edac6cc183e3f79f01edffdf5981) Thanks [@taiiiyang](https://github.com/taiiiyang)! - feat(subtitles): use the subtitles-AI icon and explain AI transcription in a tooltip
+
+- [#2107](https://github.com/mengxi-ream/read-frog/pull/2107) [`b022eff`](https://github.com/mengxi-ream/read-frog/commit/b022eff7dde3e1981d1fa5931b3bd5f8539ba392) Thanks [@mengxi-ream](https://github.com/mengxi-ream)! - fix(translation): tell users to reload the page when the extension was updated, instead of showing the raw "Extension context invalidated." error
+
+- [#2109](https://github.com/mengxi-ream/read-frog/pull/2109) [`59e155e`](https://github.com/mengxi-ream/read-frog/commit/59e155ed973f68f062cf427c63e418de408d84dd) Thanks [@ananaBMaster](https://github.com/ananaBMaster)! - fix(translate): stop the giant-paragraph split from stranding a container's own text
+
+  Tall containers are split into their descendant paragraphs so viewport-lazy translation still applies ([#1881](https://github.com/mengxi-ream/read-frog/issues/1881)). That split silently drops any text the container holds directly, which is harmless on a nested `<article>` but catastrophic on `<br>`-delimited article bodies, where the bare text _is_ the article — a Blogger post kept 8% of its text and paulgraham.com/greatwork.html kept 1.1%, while the incidental inline `<i>` got its own translation inserted mid-sentence.
+
+  - Refuse the split when the container owns prose of its own and has a block-level child, so the translate path re-segments it into per-line runs instead
+  - Keep splitting when the container owns no prose (unchanged for docs.docker.com), when its own text carries no letters (separators, dates), when it has no block child to re-segment on, when it is `<body>`, or when the split already yields more units than the gating cap
+  - Apply the same guard on the translate side's giant fallback, so both paths make one decision
+
+## 1.46.3
+
+### Patch Changes
+
+- [#2104](https://github.com/mengxi-ream/read-frog/pull/2104) [`34349b8`](https://github.com/mengxi-ream/read-frog/commit/34349b892bd62a33b47acea808d67934d48efcab) Thanks [@ananaBMaster](https://github.com/ananaBMaster)! - feat(providers): prioritize GLM 5.2 for Jalapeno Cloud
+
+## 1.46.2
+
+### Patch Changes
+
+- [#2095](https://github.com/mengxi-ream/read-frog/pull/2095) [`208397b`](https://github.com/mengxi-ream/read-frog/commit/208397b79717b612875bec3bf4109ce0d84e4c97) Thanks [@ananaBMaster](https://github.com/ananaBMaster)! - fix(hosted-ai): expose language detection in Built-in AI feature assignments
+
+- [#2092](https://github.com/mengxi-ream/read-frog/pull/2092) [`f4efced`](https://github.com/mengxi-ream/read-frog/commit/f4efced764007a9a20ca1c4b6af63251fd13e50d) Thanks [@ananaBMaster](https://github.com/ananaBMaster)! - fix(i18n): follow the configured UI language for What's New content
+
+- [#2102](https://github.com/mengxi-ream/read-frog/pull/2102) [`fac49a1`](https://github.com/mengxi-ream/read-frog/commit/fac49a135aeea96b92dd1c99217f10dd8b2dca47) Thanks [@ananaBMaster](https://github.com/ananaBMaster)! - feat(account): show the account's plan beside its name
+
+- [#2094](https://github.com/mengxi-ream/read-frog/pull/2094) [`aea6f60`](https://github.com/mengxi-ream/read-frog/commit/aea6f604ed6bce139d312849bddb34e1f8bfb97b) Thanks [@ananaBMaster](https://github.com/ananaBMaster)! - fix(popup): allow Prompt selection with Built-in AI
+
+- [#2097](https://github.com/mengxi-ream/read-frog/pull/2097) [`3c32b98`](https://github.com/mengxi-ream/read-frog/commit/3c32b98ae623c1d5fd8977c3bef1769631a88035) Thanks [@ananaBMaster](https://github.com/ananaBMaster)! - fix(options): recognize configured LLM providers for language detection
+
+- [#2096](https://github.com/mengxi-ream/read-frog/pull/2096) [`73ac569`](https://github.com/mengxi-ream/read-frog/commit/73ac569add98096306601d051ac1f3a6ee3359b5) Thanks [@ananaBMaster](https://github.com/ananaBMaster)! - fix(options): show one success notification after exporting config
+
+## 1.46.1
+
+### Patch Changes
+
+- [#2081](https://github.com/mengxi-ream/read-frog/pull/2081) [`b0b87dc`](https://github.com/mengxi-ream/read-frog/commit/b0b87dc30e135714e47775505e7cc8cea4897f5a) Thanks [@ananaBMaster](https://github.com/ananaBMaster)! - fix(providers): keep required provider headers when custom headers are set
+
+- [#2083](https://github.com/mengxi-ream/read-frog/pull/2083) [`77e02ed`](https://github.com/mengxi-ream/read-frog/commit/77e02edaf3f8c6dcf78e1e04f4c7fd26e06027eb) Thanks [@ananaBMaster](https://github.com/ananaBMaster)! - feat(providers): add a Get API key button for Atlas Cloud and Jalapeno Cloud
+
+- [#2084](https://github.com/mengxi-ream/read-frog/pull/2084) [`eb04c6d`](https://github.com/mengxi-ream/read-frog/commit/eb04c6da2124d51bdb6fe91261fafcff7ec16ef5) Thanks [@ananaBMaster](https://github.com/ananaBMaster)! - fix(floating-button): hide the floating button while the page is fullscreen (YouTube fullscreens the whole document, so it used to stay on top of the video)
+
+- [#2081](https://github.com/mengxi-ream/read-frog/pull/2081) [`b0b87dc`](https://github.com/mengxi-ream/read-frog/commit/b0b87dc30e135714e47775505e7cc8cea4897f5a) Thanks [@ananaBMaster](https://github.com/ananaBMaster)! - feat(providers): add Jalapeno Cloud, seeded for new and existing users
+
+- [#2081](https://github.com/mengxi-ream/read-frog/pull/2081) [`b0b87dc`](https://github.com/mengxi-ream/read-frog/commit/b0b87dc30e135714e47775505e7cc8cea4897f5a) Thanks [@ananaBMaster](https://github.com/ananaBMaster)! - feat(options): let allowlisted partner sites open a provider's config with its API key highlighted
+
+- [#2087](https://github.com/mengxi-ream/read-frog/pull/2087) [`c2b528b`](https://github.com/mengxi-ream/read-frog/commit/c2b528b176e9fe8df4dc578d7a49b647aaa13c66) Thanks [@ananaBMaster](https://github.com/ananaBMaster)! - fix(translation): translate plain-text pages, one paragraph at a time
+
+  Pages served as `text/plain` reach the browser as a single generated `<pre>` holding the whole file, which the walker skipped entirely — nifty.org story pages translated as nothing at all. Such a `<pre>` is now translated, while an authored `<pre>` in an HTML document still keeps its code and logs untouched.
+
+  Translation-only mode also gains the per-paragraph granularity bilingual mode has had, so a long page goes out one blank-line paragraph at a time instead of as one oversized request: paragraphs appear as they arrive, and a failed one costs only itself.
+
+- [#2085](https://github.com/mengxi-ream/read-frog/pull/2085) [`550ea75`](https://github.com/mengxi-ream/read-frog/commit/550ea7588b7d8bf16df8627f6663b41cd23557dd) Thanks [@mengxi-ream](https://github.com/mengxi-ream)! - fix(translation): translate pages whose document root opts out with `notranslate`
+
 ## 1.46.0
 
 ### Minor Changes
