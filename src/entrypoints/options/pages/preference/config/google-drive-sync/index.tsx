@@ -10,11 +10,10 @@ import { clearAccessToken } from "@/utils/google-drive/auth"
 import { syncConfig } from "@/utils/google-drive/sync"
 import { i18n } from "@/utils/i18n"
 import { logger } from "@/utils/logger"
-import { supportsGoogleDriveSync } from "@/utils/platform"
-import { ConfigCard } from "../../../components/config-card"
+import { ConfigItem } from "../../../../components/config-item"
 import { UnresolvedDialog } from "./components/unresolved-dialog"
 
-export function GoogleDriveSyncCard() {
+export function GoogleDriveSyncConfigItem() {
   const [isSyncing, setIsSyncing] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const {
@@ -24,10 +23,6 @@ export function GoogleDriveSyncCard() {
   const setUnresolvedData = useSetAtom(unresolvedConfigsAtom)
   const setResolutions = useSetAtom(resolutionsAtom)
   const lastSyncTime = useAtomValue(lastSyncTimeAtom)
-
-  if (!supportsGoogleDriveSync) {
-    return null
-  }
 
   const handleSync = async () => {
     setIsSyncing(true)
@@ -39,17 +34,17 @@ export function GoogleDriveSyncCard() {
       setIsOpen(true)
     } else if (result.status === "success") {
       const messages = {
-        uploaded: i18n.t("options.config.sync.googleDrive.syncSuccess.uploaded"),
-        downloaded: i18n.t("options.config.sync.googleDrive.syncSuccess.downloaded"),
-        "same-changes": i18n.t("options.config.sync.googleDrive.syncSuccess.sameChanges"),
-        "no-change": i18n.t("options.config.sync.googleDrive.syncSuccess.noChange"),
+        uploaded: i18n.t("options.preference.config.googleDrive.syncSuccess.uploaded"),
+        downloaded: i18n.t("options.preference.config.googleDrive.syncSuccess.downloaded"),
+        "same-changes": i18n.t("options.preference.config.googleDrive.syncSuccess.sameChanges"),
+        "no-change": i18n.t("options.preference.config.googleDrive.syncSuccess.noChange"),
       } as const
       toastManager.add({ type: "success", title: messages[result.action] })
     } else {
       logger.error("Google Drive sync error", result.error)
       toastManager.add({
         type: "error",
-        title: i18n.t("options.config.sync.googleDrive.syncError"),
+        title: i18n.t("options.preference.config.googleDrive.syncError"),
         description: result.error.message,
       })
     }
@@ -62,7 +57,7 @@ export function GoogleDriveSyncCard() {
     void invalidateAuthData()
     toastManager.add({
       type: "success",
-      title: i18n.t("options.config.sync.googleDrive.logoutSuccess"),
+      title: i18n.t("options.preference.config.googleDrive.logoutSuccess"),
     })
   }
 
@@ -72,12 +67,12 @@ export function GoogleDriveSyncCard() {
     if (success) {
       toastManager.add({
         type: "success",
-        title: i18n.t("options.config.sync.googleDrive.syncSuccess.unresolved"),
+        title: i18n.t("options.preference.config.googleDrive.syncSuccess.unresolved"),
       })
     } else {
       toastManager.add({
         type: "error",
-        title: i18n.t("options.config.sync.googleDrive.syncError"),
+        title: i18n.t("options.preference.config.googleDrive.syncError"),
       })
     }
   }
@@ -88,51 +83,49 @@ export function GoogleDriveSyncCard() {
 
   return (
     <>
-      <ConfigCard
+      <ConfigItem
         id="google-drive-sync"
-        title={i18n.t("options.config.sync.googleDrive.title")}
+        title={i18n.t("options.preference.config.googleDrive.title")}
         description={
           <div className="flex flex-col gap-2">
-            {i18n.t("options.config.sync.googleDrive.description")}
+            {i18n.t("options.preference.config.googleDrive.description")}
             <Activity mode={authData?.isAuthenticated ? "visible" : "hidden"}>
-              <div className="flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-1.5">
                 {authData?.userInfo?.picture && (
                   <img
                     src={authData.userInfo.picture}
                     alt="Google Account"
-                    className="size-5 rounded-full border"
+                    className="size-4.5 rounded-full border"
                   />
                 )}
-                <span className="text-sm text-muted-foreground">{authData?.userInfo?.email}</span>
+                <span className="text-xs">{authData?.userInfo?.email}</span>
               </div>
             </Activity>
           </div>
         }
       >
-        <div className="flex w-full flex-col items-end gap-4">
-          <div className="flex flex-col items-end gap-2">
-            <div className="flex gap-2">
-              <Button onClick={handleSync} disabled={isSyncing}>
-                <Icon icon="logos:google-drive" className="size-4" />
-                {isSyncing
-                  ? i18n.t("options.config.sync.googleDrive.syncing")
-                  : i18n.t("options.config.sync.googleDrive.sync")}
+        <div className="flex flex-col items-end gap-1.5">
+          <div className="flex gap-2">
+            <Activity mode={authData?.isAuthenticated ? "visible" : "hidden"}>
+              <Button variant="outline" size="sm" onClick={handleLogout}>
+                {i18n.t("options.preference.config.googleDrive.logout")}
               </Button>
-            </div>
-            <Activity mode={lastSyncTime ? "visible" : "hidden"}>
-              <span className="text-xs text-muted-foreground">
-                {i18n.t("options.config.sync.googleDrive.lastSyncTime")}:{" "}
-                {lastSyncTime && formatLastSyncTime(lastSyncTime)}
-              </span>
             </Activity>
-          </div>
-          <Activity mode={authData?.isAuthenticated ? "visible" : "hidden"}>
-            <Button variant="outline" onClick={handleLogout}>
-              {i18n.t("options.config.sync.googleDrive.logout")}
+            <Button variant="outline" size="sm" onClick={handleSync} disabled={isSyncing}>
+              <Icon icon="logos:google-drive" />
+              {isSyncing
+                ? i18n.t("options.preference.config.googleDrive.syncing")
+                : i18n.t("options.preference.config.googleDrive.sync")}
             </Button>
+          </div>
+          <Activity mode={lastSyncTime ? "visible" : "hidden"}>
+            <span className="text-xs whitespace-nowrap text-muted-foreground">
+              {i18n.t("options.preference.config.googleDrive.lastSyncTime")}:{" "}
+              {lastSyncTime && formatLastSyncTime(lastSyncTime)}
+            </span>
           </Activity>
         </div>
-      </ConfigCard>
+      </ConfigItem>
 
       <UnresolvedDialog
         open={isOpen}
